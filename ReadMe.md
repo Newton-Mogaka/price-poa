@@ -86,7 +86,7 @@ sudo docker compose run -d --rm scraper python scraper/worker.py --mode once
 ### Manually triggering one scraper (e.g., the bar spider)
 ```bash
 docker compose run --rm scraper python scraper/worker.py --mode once --spider thebar_spider
-```
+``` 
 
 
 ### Scraper diagnostic tool
