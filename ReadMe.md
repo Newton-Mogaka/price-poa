@@ -359,4 +359,32 @@ If the `embeddings_outbox` collection grows without being processed:
    sudo docker exec -it pricepoa_intelligence python -m outbox.backfill
    ```
 
+## MongoDB Keyfile Setup (Fresh Deployments)
+
+MongoDB runs as a single-node replica set with `--keyFile` authentication, which requires
+a keyfile at `./mongo-keyfile` (bind-mounted into the container). This file is not
+tracked in git (see `.gitignore`), so it must be created manually on any new environment
+before starting the stack.
+
+**On a fresh clone**, generate the keyfile before running `docker compose up`:
+
+```bash
+openssl rand -base64 756 > ./mongo-keyfile
+sudo chown 999:999 ./mongo-keyfile   # matches the mongo container's internal UID
+sudo chmod 600 ./mongo-keyfile       # MongoDB refuses to start if permissions are too open
+```
+
+**Common failure mode:** if `docker compose up` is run before the keyfile exists, Docker
+will silently create an empty *directory* at `./mongo-keyfile` to satisfy the bind mount,
+which causes MongoDB to fail on startup with:
+  "error":"UnknownError: Caught std::exception of type      std::__ios_failure: basic_filebuf::underflow error reading the file: iostream error"
+  
+If this happens, remove the bad directory and regenerate the keyfile:
+
+```bash
+sudo rm -rf ./mongo-keyfile
+openssl rand -base64 756 > ./mongo-keyfile
+sudo chown 999:999 ./mongo-keyfile
+sudo chmod 600 ./mongo-keyfile
+```
 ---
