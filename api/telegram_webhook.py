@@ -7,18 +7,23 @@ Handles chat sessions, reviews, and credibility scoring for grocers.
 from fastapi import APIRouter, Request, HTTPException, Header, BackgroundTasks
 from fastapi.responses import JSONResponse
 import logging
+import requests
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
 from bson import ObjectId
 from pymongo.errors import DuplicateKeyError
 from pydantic import BaseModel, Field, ValidationError
+import os
+from scanning.decoder import decode_image
+from scanning.router import route_to_product
+from scanning.points import award_scan_points
 
-from telegram_bot import verify_telegram_secret, send_telegram_text, send_telegram_photo
+from telegram_bot import verify_telegram_secret, send_telegram_text, send_telegram_photo, TELEGRAM_API_BASE, TELEGRAM_BOT_TOKEN
 from infographics.generator import (
     generate_shopping_list_image,
     generate_product_options_image,
 )
-from query_engine import get_product_prices, find_product_matches
+from query_engine import get_product_prices, find_product_matches, find_product, parse_price_value
 from database.connection import get_database
 from intelligence.nlp.product_matcher import find_product_fuzzy
 from query_engine import find_product
@@ -1526,15 +1531,103 @@ async def telegram_webhook(
         logger.info("Received non-message update (e.g. edited_message)")
         return JSONResponse(status_code=200, content={"status": "ok"})
 
-    chat = message.get("chat", {})
-    chat_id = chat.get("id")
-    text = message.get("text")
-
-    if not chat_id or not text:
-        logger.info("Message has no chat id or text (e.g. photo/sticker) - ignoring")
+    chat_id = message.get("chat", {}).get("id")
+    if not chat_id:
+        logger.info("Message has no chat id (e.g. photo/sticker) - ignoring")
         return JSONResponse(status_code=200, content={"status": "ok"})
 
-    text = text.strip()
+    # Check if this is an image message with "/scan" caption
+    scan_processed = None
+    if message.get("photo") and message.get("caption") == "/scan":
+        # Download the image
+        photo = message["photo"][-1]  # get the largest photo
+        file_id = photo["file_id"]
+        file_info_url = f"{TELEGRAM_API_BASE}/getFile?file_id={file_id}"
+        file_info_resp = requests.get(file_info_url)
+        file_info_resp.raise_for_status()
+        file_path = file_info_resp.json()["result"]["file_path"]
+        image_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
+        image_resp = requests.get(image_url)
+        image_resp.raise_for_status()
+        image_bytes = image_resp.content
+
+        # Decode the image
+        decoder_result = decode_image(image_bytes)
+
+        # Route to product
+        db = await get_database()
+        router_result = await route_to_product(decoder_result, db)
+
+        # Handle router_result
+        if router_result["status"] == "decode_failed":
+            fallback_text = "couldn't read that"
+            send_telegram_text(chat_id, fallback_text)
+            return JSONResponse(status_code=200, content={"status": "accepted"})
+        elif router_result["status"] == "unrecognized_code":
+            fallback_text = "not a recognized code type"
+            send_telegram_text(chat_id, fallback_text)
+            return JSONResponse(status_code=200, content={"status": "accepted"})
+        elif router_result["status"] == "product_not_found":
+            # We'll use the payload as the query text for the not_found message
+            query_text = decoder_result["payload"]
+            fallback_text = (
+                f'Sorry, I couldn\'t find "{query_text}" in our database yet. '
+                "Try the exact product name, e.g. \"Cooking Oil\" or \"unga\"."
+            )
+            send_telegram_text(chat_id, fallback_text)
+            return JSONResponse(status_code=200, content={"status": "accepted"})
+        elif router_result["status"] == "success":
+            product = router_result["product"]
+            # Determine action based on symbology
+            symbology = decoder_result["symbology"]
+            if symbology in ("EAN13", "UPCA"):
+                action = "barcode_scan"
+            else:  # QR
+                action = "qr_scan"
+            # Award points
+            await award_scan_points(chat_id, action, str(product["_id"]))
+            # Build a processed result that mimics product_options
+            prices_data = await get_product_prices(db, product)
+            if prices_data and prices_data.get("stores"):
+                cheapest_store = prices_data["stores"][0]
+                option = {
+                    "product_id": str(product["_id"]),
+                    "name": product.get("name", "Unknown"),
+                    "price_label": cheapest_store["price"],
+                    "price_value": parse_price_value(cheapest_store["price"]),
+                    "store_name": cheapest_store["name"],
+                    "offer": cheapest_store["offer"],
+                    "confidence": 1.0,  # we are confident because we decoded a barcode/QR
+                    "match_type": "barcode" if symbology in ("EAN13", "UPCA") else "qr",
+                }
+            else:
+                option = {
+                    "product_id": str(product["_id"]),
+                    "name": product.get("name", "Unknown"),
+                    "price_label": "N/A",
+                    "price_value": 0,
+                    "store_name": "Unknown",
+                    "offer": False,
+                    "confidence": 1.0,
+                    "match_type": "barcode" if symbology in ("EAN13", "UPCA") else "qr",
+                }
+            scan_processed = {
+                "type": "product_options",
+                "data": {
+                    "query_text": decoder_result["payload"],
+                    "options": [option],
+                    "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                }
+            }
+        else:
+            # Should not happen
+            logger.warning("Unexpected router result status: %s", router_result["status"])
+            scan_processed = {"type": "not_found", "data": {"message": "Unknown error"}}
+
+    # Extract text for normal processing (if not handled by scan logic above)
+    text = message.get("text")
+    if text is not None:
+        text = text.strip()
 
     # Extract client IP address for device tracking (considering proxies)
     forwarded = request.headers.get("X-Forwarded-For")
@@ -1553,6 +1646,10 @@ async def telegram_webhook(
         fallback_text = "Sorry, our service is temporarily unavailable. Please try again later."
         send_telegram_text(chat_id, fallback_text)
         return JSONResponse(status_code=200, content={"status": "accepted"})
+
+    # If we have a scan processed result, use that instead
+    if scan_processed is not None:
+        processed = scan_processed
 
     # Log query for analytics
     try:
