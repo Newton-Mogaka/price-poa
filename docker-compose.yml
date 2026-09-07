@@ -39,11 +39,12 @@ services:
     volumes:
       - ./mongo-init/init-replica.js:/init-replica.js:ro
     entrypoint: ["/bin/bash", "-c"]
-    command: >
-      set -e;
-      echo "Waiting for mongod...";
-      until mongosh --host mongo --username "$${MONGO_INITDB_ROOT_USERNAME}" --password "$${MONGO_INITDB_ROOT_PASSWORD}" --authenticationDatabase admin --quiet --eval "db.runCommand({ping:1}).ok" >/dev/null 2>&1; do sleep 2; done;
-      mongosh --host mongo --username "$${MONGO_INITDB_ROOT_USERNAME}" --password "$${MONGO_INITDB_ROOT_PASSWORD}" --authenticationDatabase admin --quiet /init-replica.js;
+    command: 
+      - |
+        set -e;
+        echo "Waiting for mongod...";
+        until mongosh --host mongo --username "$${MONGO_INITDB_ROOT_USERNAME}" --password "$${MONGO_INITDB_ROOT_PASSWORD}" --authenticationDatabase admin --quiet --eval "db.runCommand({ping:1}).ok" >/dev/null 2>&1; do sleep 2; done;
+        mongosh --host mongo --username "$${MONGO_INITDB_ROOT_USERNAME}" --password "$${MONGO_INITDB_ROOT_PASSWORD}" --authenticationDatabase admin --quiet /init-replica.js;
     networks:
       - pricepoa_network
   # MONGO-EXPRESS (Dev Admin UI)
