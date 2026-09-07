@@ -750,24 +750,22 @@ async def get_products_for_shopping_list(db, product_names: List[str]) -> List[D
         if not name or len(name.strip()) < 2:
             continue
 
-        # Get multiple product matches by confidence
-        matches = await find_product_fuzzy(db, name.strip(), threshold=0.3)
-        # Take top 5 matches by confidence to consider for price-based selection
-        matches = matches[:5] if len(matches) > 5 else matches
+        # Get product matches using the new search pipeline
+        search_results = await search_products(db, name.strip(), limit=5)
 
         best_match = None
         best_price = float('inf')  # Start with infinity as worst price
 
         # Evaluate each match to find the cheapest one
-        for match in matches:
-            product_id = match["product_id"]
+        for result in search_results:
+            product_id = result.get("product_id")
             # Skip if we've already added this product
             if product_id in found_names:
                 continue
 
             # Get prices for this product to determine its cost
             try:
-                # Create a minimal product dict for get_product_prices
+                # Create a minimal product dict for get_product_pricing
                 product_for_pricing = {"_id": product_id}
                 prices_data = await get_product_prices(db, product_for_pricing)
 
@@ -789,12 +787,12 @@ async def get_products_for_shopping_list(db, product_names: List[str]) -> List[D
                     if min_price != float('inf'):
                         if min_price < best_price:
                             best_price = min_price
-                            best_match = match
+                            best_match = result
                 # If no prices found, we might still want to consider the product
                 # but give it a high price so it's less likely to be selected
                 elif best_price == float('inf'):  # Only if we haven't found any priced products yet
                     best_price = float('inf')  # Keep as infinity
-                    best_match = match  # Fallback to this match if no others have prices
+                    best_match = result  # Fallback to this match if no others have prices
 
             except Exception as e:
                 logger.error(f"Error processing product match {product_id}: {e}")

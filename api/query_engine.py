@@ -1,7 +1,7 @@
 """
 query_engine.py
 Thin orchestration layer for product search using the new search pipeline.
-All search logic resides exclusively in intelligence/nlp/search_pipeline.
+All search logic resides exclusively in search_pipeline.
 """
 
 import logging
@@ -478,5 +478,5 @@ async def find_product_matches(
         )
         return []
 
-# Backward compatibility alias
-find_product_fuzzy = find_product
+# Backward compatibility alias removed - product matching now handled by search_pipeline
+# find_product_fuzzy = find_product

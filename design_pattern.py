@@ -24,7 +24,7 @@ Design Patterns Found in PricePoa Codebase
 ### **Decorator Pattern**
 - **Files**:
   - `intelligence\outbox\outbox.py` - Uses `@property` decorator for database access
-  - `intelligence\nlp\search_pipeline\vector_search.py` - Property decorators for vector search configuration
+  - `search_pipeline\vector_search.py` - Property decorators for vector search configuration
 - **Purpose**: Dynamically adds behavior to objects without modifying their structure, enhancing functionality through wrappers.
 
 ### **Pipeline Pattern** (Structural/Behavioural hybrid)
