@@ -14,9 +14,9 @@ The system is split into six primary microservices managed via Docker Compose:
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **mongo** | `pricepoa_mongo` | MongoDB 6.0 | `27017` | `27017` | Document database for products, prices, and scrape targets. |
 | **mongo-express** | `pricepoa_mongo_express` | Node.js / Admin UI | `8081` | `8081` | Visual web interface for database management (Dev only). |
-| **api** | `pricepoa_api` | FastAPI (Python 3.12) | `8000` | `8000` | Webhook endpoints for Telegram/WhatsApp and core API. |
+| **api** | `pricepoa_api` | FastAPI (Python 3.12) | `8000` | `8000` | Webhook endpoints for Telegram/WhatsApp, core API, and search pipeline functionality. |
 | **scraper** | `pricepoa_scraper` | Scrapy / Playwright | - | - | Scheduled crawler and background worker. |
-| **intelligence** | `pricepoa_intelligence` | Python 3.12 | - | - | NLP and machine learning services for product matching, recommendations, and analytics. |
+| **intelligence** | `pricepoa_intelligence` | Python 3.12 | - | - | Machine learning services for product recommendations, analytics, and intelligence processing. |
 | **qdrant** | `pricepoa_qdrant` | Qdrant Vector Database | `6333` | `6333` | Vector database for storing and searching product embeddings for semantic search. |
 
 ---
@@ -174,9 +174,9 @@ sudo docker compose logs -f api
 
 ---
 
-## 6. Intelligence Layer (NLP Capabilities)
+## 6. Intelligence Layer (Machine Learning Capabilities)
 
-**Phase 4 of the project introduced the intelligence engine, which provides advanced analytics capabilities.** The natural language processing (NLP) parser for extracting product names and locations from free-form user messages has been implemented and is now integrated into the Telegram webhook for fuzzy product matching.
+**Phase 4 of the project introduced the intelligence engine, which provides advanced analytics capabilities.** The natural language processing (NLP) functionality has been moved to a top-level `search_pipeline` module for improved modularity. The intelligence layer now focuses on machine learning services for product recommendations, analytics, and other AI-driven insights.
 
 ### Key Components
 
@@ -240,9 +240,10 @@ sudo docker compose exec mongo mongosh -u pricepoa_dev -p pricepoa_dev_password 
 
 ---
 
-## 6c. Search Pipeline
+## 6c. Search Pipeline (Top-Level Module)
 
-The search pipeline has been refactored into a modular, layered architecture. Each stage of the pipeline is
+The search pipeline is now located at the top-level of the project (in the `search_pipeline/` directory).
+It has been refactored into a modular, layered architecture. Each stage of the pipeline is
 handled by a dedicated component, making the system more maintainable and extensible. The pipeline consists
 of the following stages:
 
