@@ -1,11 +1,11 @@
 """
-Tests for the scanning.points module.
+Tests for the api.scanning.points module.
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from datetime import datetime, timezone
 
-from scanning.points import award_scan_points
+from api.scanning.points import award_scan_points
 
 
 @pytest.mark.asyncio

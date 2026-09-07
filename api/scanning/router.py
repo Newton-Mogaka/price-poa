@@ -64,7 +64,7 @@ async def route_to_product(
     Route a decoded barcode/QR result to the product lookup function.
 
     Args:
-        decoder_result: Output from scanning.decoder.decode_image
+        decoder_result: Output from api.scanning.decoder.decode_image
         db: MongoDB database connection
 
     Returns:

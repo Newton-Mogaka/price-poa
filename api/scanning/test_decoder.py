@@ -1,5 +1,5 @@
 """
-Tests for the scanning.decoder module.
+Tests for the api.scanning.decoder module.
 """
 import io
 import logging
@@ -16,7 +16,7 @@ try:
 except ImportError:
     TEST_IMAGE_GENERATION_AVAILABLE = False
 
-from scanning.decoder import decode_image
+from api.scanning.decoder import decode_image
 
 # Disable logging during tests
 logging.disable(logging.CRITICAL)

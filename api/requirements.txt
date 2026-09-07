@@ -22,3 +22,7 @@ python-Levenshtein
 jellyfish
 jinja2
 qdrant-client
+
+#SCANNING REQUIREMENTS
+pyzbar
+zxing

@@ -14,9 +14,9 @@ from bson import ObjectId
 from pymongo.errors import DuplicateKeyError
 from pydantic import BaseModel, Field, ValidationError
 import os
-from scanning.decoder import decode_image
-from scanning.router import route_to_product
-from scanning.points import award_scan_points
+from api.scanning.decoder import decode_image
+from api.scanning.router import route_to_product
+from api.scanning.points import award_scan_points
 
 from telegram_bot import verify_telegram_secret, send_telegram_text, send_telegram_photo, TELEGRAM_API_BASE, TELEGRAM_BOT_TOKEN
 from infographics.generator import (

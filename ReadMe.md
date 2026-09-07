@@ -14,7 +14,7 @@ The system is split into six primary microservices managed via Docker Compose:
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **mongo** | `pricepoa_mongo` | MongoDB 6.0 | `27017` | `27017` | Document database for products, prices, and scrape targets. |
 | **mongo-express** | `pricepoa_mongo_express` | Node.js / Admin UI | `8081` | `8081` | Visual web interface for database management (Dev only). |
-| **api** | `pricepoa_api` | FastAPI (Python 3.12) | `8000` | `8000` | Webhook endpoints for Telegram/WhatsApp, core API, and search pipeline functionality. |
+| **api** | `pricepoa_api` | FastAPI (Python 3.12) | `8000` | `8000` | Webhook endpoints for Telegram/WhatsApp, core API, search pipeline, and barcode/QR scanning functionality. |
 | **scraper** | `pricepoa_scraper` | Scrapy / Playwright | - | - | Scheduled crawler and background worker. |
 | **intelligence** | `pricepoa_intelligence` | Python 3.12 | - | - | Machine learning services for product recommendations, analytics, and intelligence processing. |
 | **qdrant** | `pricepoa_qdrant` | Qdrant Vector Database | `6333` | `6333` | Vector database for storing and searching product embeddings for semantic search. |

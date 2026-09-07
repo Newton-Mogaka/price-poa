@@ -1,10 +1,10 @@
 """
-Tests for the scanning.router module.
+Tests for the api.scanning.router module.
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from scanning.router import (
+from api.scanning.router import (
     _extract_gtin_from_gs1_digital_link,
     _is_product_sku_pattern,
     route_to_product,
