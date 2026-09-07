@@ -8,14 +8,14 @@ import logging
 # Add project root to sys.path dynamically
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# ✓ NEW: Import Telegram webhook router
+# Import Telegram webhook router
 from telegram_webhook import router as telegram_router
 from telegram_bot import set_telegram_webhook
 
-# ✓ NEW: Import admin routes
+# Import admin routes
 from admin import admin_router
 
-# ��� � � ✓ NEW: Import Redis cache
+# Import Redis cache
 from redis_cache import init_redis_cache, close_redis_cache
 
 # Logging
@@ -26,12 +26,15 @@ logger.setLevel(logging.INFO)
 app = FastAPI(
     title="PricePoa API",
     description="AI agent for Kenyan grocery price comparisons"
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
 
-# ✓ NEW: Include Telegram webhook routes
+# Include Telegram webhook routes
 app.include_router(telegram_router)
 
-# ✓ NEW: Include admin routes
+# Include admin routes
 app.include_router(admin_router)
 
 
@@ -78,116 +81,3 @@ async def health_check():
             "mongodb_db": mongodb_db
         }
     )
-
-
-@app.get("/test/db")
-async def test_database_connection():
-    """Test endpoint to verify MongoDB connection and basic operations."""
-    try:
-        mongodb_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-        mongodb_db = os.getenv("MONGODB_DB", "pricepoa")
-
-        # Create client
-        client = AsyncIOMotorClient(mongodb_uri)
-        db = client[mongodb_db]
-
-        # Test connection
-        await client.admin.command('ping')
-
-        # Get collection stats
-        products_count = await db.products.count_documents({})
-        stores_count = await db.stores.count_documents({})
-        prices_count = await db.prices.count_documents({})
-
-        # Get sample product if exists
-        sample_product = await db.products.find_one({}, {"_id": 0})
-
-        # Close connection
-        client.close()
-
-        return JSONResponse(
-            status_code=200,
-            content={
-                "status": "success",
-                "message": "MongoDB connection test passed",
-                "database": mongodb_db,
-                "collections": {
-                    "products": products_count,
-                    "stores": stores_count,
-                    "prices": prices_count
-                },
-                "sample_product": sample_product
-            }
-        )
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "status": "error",
-                "message": f"MongoDB connection test failed: {str(e)}"
-            }
-        )
-
-
-@app.get("/test/prices/recent")
-async def get_recent_prices(limit: int = 10):
-    """Get recent price entries for testing."""
-    try:
-        mongodb_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-        mongodb_db = os.getenv("MONGODB_DB", "pricepoa")
-
-        client = AsyncIOMotorClient(mongodb_uri)
-        db = client[mongodb_db]
-
-        # Get recent prices with product and store info
-        pipeline = [
-            {"$sort": {"verified_at": -1}},
-            {"$limit": limit},
-            {
-                "$lookup": {
-                    "from": "products",
-                    "localField": "product_id",
-                    "foreignField": "_id",
-                    "as": "product"
-                }
-            },
-            {
-                "$lookup": {
-                    "from": "stores",
-                    "localField": "store_id",
-                    "foreignField": "_id",
-                    "as": "store"
-                }
-            },
-            {
-                "$project": {
-                    "_id": 0,
-                    "price_kes": 1,
-                    "source": 1,
-                    "verified_at": 1,
-                    "is_promotional": 1,
-                    "product_name": {"$arrayElemAt": ["$product.name", 0]},
-                    "store_chain": {"$arrayElemAt": ["$store.chain", 0]},
-                    "store_branch": {"$arrayElemAt": ["$store.branch", 0]}
-                }
-            }
-        ]
-
-        recent_prices = await db.prices.aggregate(pipeline).to_list(length=None)
-
-        return JSONResponse(
-            status_code=200,
-            content={
-                "status": "success",
-                "message": "Recent prices retrieved",
-                "prices": recent_prices
-            }
-        )
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "status": "error",
-                "message": f"Failed to retrieve recent prices: {str(e)}"
-            }
-        )
