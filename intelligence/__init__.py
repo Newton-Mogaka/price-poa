@@ -21,14 +21,8 @@ from .intelligence_engine import (
     get_intelligence_status
 )
 
-# NLP module for enhanced product matching
-from .nlp import (
-    ProductMatcher,
-    get_product_matcher,
-    find_product_fuzzy,
-    find_product_enhanced,
-    suggest_product_corrections as suggest_nlp_corrections
-)
+# NLP module removed - search pipeline moved to top-level
+# Product matching now handled by search_pipeline module
 
 # Version information
 __version__ = "1.0.0"
@@ -61,13 +55,6 @@ __all__ = [
     'analyze_query_trends',
     'get_cached_trend_analysis',
     'is_trend_cache_fresh',
-
-    # NLP / Enhanced product matching
-    'ProductMatcher',
-    'get_product_matcher',
-    'find_product_fuzzy',
-    'find_product_enhanced',
-    'suggest_product_corrections',
 
     # System status
     'get_intelligence_status',

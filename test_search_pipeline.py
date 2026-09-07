@@ -17,7 +17,7 @@ async def test_search_pipeline():
     print("Testing new search pipeline...")
 
     # Import the modules we created
-    from intelligence.nlp.search_pipeline import (
+    from search_pipeline import (
         normalize_text,
         parse_query,
         EnhancedVectorSearchService,
@@ -189,7 +189,7 @@ async def test_search_pipeline():
     mock_products.find = AsyncMock(return_value=AsyncMock(to_list=AsyncMock(return_value=[mock_product])))
 
     # Mock the vector search service
-    with patch('intelligence.nlp.search_pipeline.EnhancedVectorSearchService') as mock_vector_service:
+    with patch('search_pipeline.EnhancedVectorSearchService') as mock_vector_service:
         # Configure the mock vector service
         mock_vector_instance = Mock()
         mock_vector_instance.search_similar_products = AsyncMock(return_value=[
@@ -209,9 +209,9 @@ async def test_search_pipeline():
         mock_vector_service.return_value = mock_vector_instance
 
         # Mock the rapidfuzz functionality to avoid needing the actual library
-        with patch('intelligence.nlp.search_pipeline.RAPIDFUZZ_AVAILABLE', True):
-            with patch('intelligence.nlp.search_pipeline.fuzz') as mock_fuzz:
-                with patch('intelligence.nlp.search_pipeline.process') as mock_process:
+        with patch('search_pipeline.RAPIDFUZZ_AVAILABLE', True):
+            with patch('search_pipeline.fuzz') as mock_fuzz:
+                with patch('search_pipeline.process') as mock_process:
                     # Configure fuzzy matching to return good results
                     mock_process.extract.return_value = [
                         ("brookside milk", 85, 0),  # (matched_term, score, index)
@@ -223,7 +223,7 @@ async def test_search_pipeline():
                         return mock_product
 
                     # Patch the internal method
-                    with patch('intelligence.nlp.search_pipeline.SearchPipeline._fetch_product_document', side_effect=mock_fetch_product):
+                    with patch('search_pipeline.SearchPipeline._fetch_product_document', side_effect=mock_fetch_product):
                         # Now test the search pipeline
                         pipeline_results = await search_products(
                             db=mock_db,

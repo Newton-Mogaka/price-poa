@@ -28,7 +28,7 @@ async def index_products_with_enhanced_pipeline():
     """
     try:
         # Import the enhanced vector search service
-        from intelligence.nlp.search_pipeline.vector_search import EnhancedVectorSearchService
+        from search_pipeline.vector_search import EnhancedVectorSearchService
 
         # Connect to MongoDB
         mongo_client = AsyncIOMotorClient(MONGODB_URI)

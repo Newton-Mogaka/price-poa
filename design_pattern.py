@@ -15,7 +15,7 @@ Design Patterns Found in PricePoa Codebase
   - `scraper\pipelines\text_normalizer.py` - `TextNormalizer` creates normalization rules with default values
   - `scraper\pipelines\canonical_product_builder.py` - `CanonicalProductBuilder` constructs canonical products from extracted attributes
   - `scraper\pipelines\embedding_text_builder.py` - Builds embedding text for products
-  - `intelligence\nlp\search_pipeline\ranker.py` - Implements different ranking strategies
+  - `search_pipeline\ranker.py` - Implements different ranking strategies
   - `database\models.py` - Factory-style creation of database model instances
 - **Purpose**: Encapsulates object creation logic, allowing the system to create objects without specifying their exact classes.
 

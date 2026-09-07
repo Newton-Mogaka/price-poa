@@ -25,7 +25,7 @@ from infographics.generator import (
 )
 from query_engine import get_product_prices, find_product_matches, find_product, parse_price_value
 from database.connection import get_database
-from intelligence.nlp.product_matcher import find_product_fuzzy
+from search_pipeline import search_products
 from query_engine import find_product
 from database.models import (
     ChatSession, ChatMessage, Grocer, ChatRequest,

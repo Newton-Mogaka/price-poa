@@ -1,6 +1,6 @@
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
-from intelligence.nlp.search_pipeline.vector_search import EnhancedVectorSearchService
+from search_pipeline.vector_search import EnhancedVectorSearchService
 
 # Load environment variables
 load_dotenv()

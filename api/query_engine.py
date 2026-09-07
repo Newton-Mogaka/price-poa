@@ -9,9 +9,9 @@ import hashlib
 from typing import Optional, Dict, Any
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from intelligence.nlp.search_pipeline import search_products
-from intelligence.nlp.search_pipeline.normalizer import normalize_query
-from intelligence.nlp.search_pipeline.query_parser import parse_query, ParsedQuery
+from search_pipeline import search_products
+from search_pipeline.normalizer import normalize_query
+from search_pipeline.query_parser import parse_query, ParsedQuery
 from redis_cache import (
     redis_cache,
     make_product_key,
