@@ -1097,7 +1097,7 @@ async def process_telegram_message(chat_id: int, text: str, background_tasks: Op
                         "text": "📸 Scan barcode",
                         "request_photo": {
                             "request_id": 1,
-                            "photo_types": {"type": "photo"}
+                            "photo_type": {"type": "photo"}
                         }
                     }
                 ]
