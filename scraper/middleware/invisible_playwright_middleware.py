@@ -10,6 +10,7 @@ import logging
 import os
 from datetime import datetime
 from urllib.parse import urlparse
+import invisible_playwright as ip 
 from invisible_playwright.async_api import async_playwright
 
 logger = logging.getLogger(__name__)
@@ -39,25 +40,29 @@ class InvisiblePlaywrightMiddleware:
         """Initialize invisible_playwright Firefox browser when spider opens."""
         try:
             self.playwright = await async_playwright().start()
-            
+
+            # Resolve the sealed Firefox binary fetched at build time
+            executable_path = str(ip.ensure_binary())
+            logger.info(f"Using invisible_playwright Firefox binary at {executable_path}")
+
             # Read proxy configuration from environment variables
             proxy_url = os.getenv("DAMRU_PROXY") or os.getenv("PROXY")
-            
+        
             # Configure browser launch arguments
             launch_kwargs = {
                 "headless": True,
+                "executable_path": executable_path,      # ← add this key
                 "args": [
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
                     "--disable-dev-shm-usage"
                 ]
             }
-            
+        
             if proxy_url:
                 logger.info(f"Configuring invisible_playwright proxy: {proxy_url}")
                 launch_kwargs["proxy"] = {"server": proxy_url}
-            
-            # Launch the patched Firefox browser
+        
             self.browser = await self.playwright.firefox.launch(**launch_kwargs)
             logger.info("InvisiblePlaywright Firefox browser initialized successfully")
         except Exception as e:
