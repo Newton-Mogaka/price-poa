@@ -23,4 +23,4 @@ response_headers
 meta
 mongo-keyfile
 technical_breakdown.md
-.nginx.conf
+.nginx.confnginx/nginx.conf
