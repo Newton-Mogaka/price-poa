@@ -116,3 +116,25 @@ def get_telegram_webhook_info() -> dict:
     except requests.RequestException as e:
         logger.error(f"Failed to get Telegram webhook info: {e}")
         return {}
+
+
+def answer_callback_query(callback_query_id: str, text: str = None, show_alert: bool = False) -> bool:
+    """
+    Answer a callback query sent from an inline keyboard.
+    Returns True on success.
+    """
+    url = f"{TELEGRAM_API_BASE}/answerCallbackQuery"
+    payload = {
+        "callback_query_id": callback_query_id,
+    }
+    if text is not None:
+        payload["text"] = text
+    if show_alert:
+        payload["show_alert"] = True
+    try:
+        resp = requests.post(url, json=payload, timeout=10)
+        resp.raise_for_status()
+        return True
+    except requests.RequestException as e:
+        logger.error(f"Failed to answer callback query: {e}")
+        return False

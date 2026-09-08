@@ -18,7 +18,7 @@ from scanning.decoder import decode_image
 from scanning.router import route_to_product
 from scanning.points import award_scan_points
 
-from telegram_bot import verify_telegram_secret, send_telegram_text, send_telegram_photo, TELEGRAM_API_BASE, TELEGRAM_BOT_TOKEN
+from telegram_bot import verify_telegram_secret, send_telegram_text, send_telegram_photo, TELEGRAM_API_BASE, TELEGRAM_BOT_TOKEN, answer_callback_query
 from infographics.generator import (
     generate_shopping_list_image,
     generate_product_options_image,
@@ -430,10 +430,22 @@ async def handle_callback_query(callback_query: Dict[str, Any]):
     """Handle Telegram callback queries, e.g. rating button presses."""
     try:
         data = callback_query.get("data", "")
-        chat = callback_query.get("message", {}).get("chat", {})
-        chat_id = chat.get("id")
+        chat_id = callback_query.get("message", {}).get("chat", {}).get("id")
         user_id = callback_query.get("from", {}).get("id")
 
+        # Handle scan_photo callback from inline keyboard
+        if data == "scan_photo":
+            # Acknowledge the button press so the loading spinner disappears
+            await answer_callback_query(
+                callback_query_id=callback_query["id"],
+                text="Please send a photo of the barcode/QR code."
+            )
+            # Optionally send a follow-up message (the answer above already shows a toast,
+            # but we can also send a normal message if we want more space)
+            # send_telegram_text(chat_id, "Please send a photo of the barcode/QR code.")
+            return JSONResponse(status_code=200, content={"status": "accepted"})
+
+        # Existing rating callback handling
         if not data.startswith("rate:"):
             logger.info(f"Ignoring unsupported callback query: {data}")
             return
@@ -1089,25 +1101,21 @@ async def process_telegram_message(chat_id: int, text: str, background_tasks: Op
             {"$set": {"scan_mode": True, "scan_mode_updated_at": datetime.now(timezone.utc)}},
             upsert=True
         )
-        # Build keyboard with button that requests a photo
+        # Build an inline keyboard with a button that triggers a callback
         reply_markup = {
-            "keyboard": [
+            "inline_keyboard": [
                 [
                     {
                         "text": "📸 Scan barcode",
-                        "request_photo": {
-                            "request_id": 1
-                        }
+                        "callback_data": "scan_photo"
                     }
                 ]
-            ],
-            "resize_keyboard": True,
-            "one_time_keyboard": True
+            ]
         }
         return {
             "type": "scan_initiated",
             "data": {
-                "message": "Please tap the button below to take a barcode/QR photo:",
+                "message": "Tap the button below, then send a photo of the barcode/QR code:",
                 "reply_markup": reply_markup
             }
         }
