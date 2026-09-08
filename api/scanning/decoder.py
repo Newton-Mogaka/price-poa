@@ -89,8 +89,10 @@ def _decode_with_zxing(image_bytes: bytes) -> Optional[Dict[str, Optional[str]]]
             tmp.write(image_bytes)
             tmp.flush()
             reader = BarCodeReader()
-            barcode = reader.decode(tmp.path)
-            os.unlink(tmp.name)
+            barcode = reader.decode(tmp.name)
+
+        # Clean up the temporary file
+        os.unlink(tmp.name)
 
         if barcode is None:
             return None
