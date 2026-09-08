@@ -25,11 +25,11 @@ logger.setLevel(logging.INFO)
 # Create app
 app = FastAPI(
     title="PricePoa API",
-    description="AI agent for Kenyan grocery price comparisons"
+    description="AI agent for Kenyan grocery price comparisons",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
-)
+   )
 
 # Include Telegram webhook routes
 app.include_router(telegram_router)
