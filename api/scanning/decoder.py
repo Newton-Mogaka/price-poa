@@ -11,6 +11,8 @@ from __future__ import annotations
 import logging
 from typing import Dict, Optional
 import io
+from PIL import Image
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -33,121 +35,126 @@ except ImportError:  # pragma: no cover
     ZXING_CPP_AVAILABLE = False
 
 
+def _preprocess_image_variants(image: Image.Image):
+    """Yield a sequence of PIL Image variants to try for barcode detection."""
+    # Original
+    yield image.convert("RGB")
+    # Grayscale
+    yield image.convert("L")
+    # Inverted RGB
+    rgb = image.convert("RGB")
+    inv_rgb_array = 255 - np.array(rgb)
+    yield Image.fromarray(inv_rgb_array.astype('uint8'))
+    # Inverted grayscale
+    gray = image.convert("L")
+    inv_gray_array = 255 - np.array(gray)
+    yield Image.fromarray(inv_gray_array.astype('uint8'))
+    # Upscaled 2x (RGB)
+    w, h = image.size
+    yield image.resize((w * 2, h * 2), Image.BILINEAR).convert("RGB")
+    # Upscaled 2x grayscale
+    yield image.resize((w * 2, h * 2), Image.BILINEAR).convert("L")
+
+
 def _decode_with_pyzbar(image_bytes: bytes) -> Optional[Dict[str, Optional[str]]]:
-    """Attempt to decode using pyzbar."""
+    """Attempt to decode using pyzbar with multiple preprocessing variants."""
     if not PYZBAR_AVAILABLE:
         logger.info("pyzbar not available")
         return None
 
     try:
-        # pyzbar expects a numpy array or PIL Image; we'll convert from bytes
-        # For simplicity, we assume the caller has already converted to a format pyzbar accepts.
-        # In practice, we might need to use PIL to open the bytes.
-        # However, to keep this module self-contained and avoid heavy dependencies,
-        # we note that pyzbar can work directly with bytes if they represent a valid image.
-        # We'll try to decode directly; if it fails, we'll log and return None.
-        barcodes = pyzbar.decode(image_bytes)
-        logger.info("pyzbar raw barcodes: %s", barcodes)
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.warning("pyzbar failed to decode image: %s", exc, exc_info=True)
+        pil_image = Image.open(io.BytesIO(image_bytes))
+        logger.info("pyzbar input image: mode=%s, size=%s", pil_image.mode, pil_image.size)
+    except Exception as exc:
+        logger.warning("Failed to open image for pyzbar: %s", exc)
         return None
 
-    if not barcodes:
-        logger.info("pyzbar found no barcodes")
-        return None
+    for idx, variant in enumerate(_preprocess_image_variants(pil_image)):
+        try:
+            # pyzbar works directly on PIL Image
+            barcodes = pyzbar.decode(variant)
+            logger.info("pyzbar variant %d: raw barcodes: %s", idx, barcodes)
+            if barcodes:
+                barcode = barcodes[0]
+                symbology = barcode.type
+                payload = barcode.data.decode("utf-8")
+                logger.info("pyzbar variant %d decoded: symbology=%s, payload=%s", idx, symbology, payload)
+                # Normalize symbology names
+                if symbology in ("EAN13", "EAN 13"):
+                    symbology = "EAN13"
+                elif symbology in ("UPC A", "UPC-A"):
+                    symbology = "UPCA"
+                elif symbology == "QR CODE":
+                    symbology = "QR"
+                else:
+                    logger.info("pyzbar decoded unsupported symbology: %s", symbology)
+                    continue
+                return {"symbology": symbology, "payload": payload}
+        except Exception as exc:
+            logger.warning("pyzbar variant %d failed: %s", idx, exc)
+            continue
 
-    # We only care about the first barcode/QR code found.
-    # In practice, there might be multiple; we take the first.
-    barcode = barcodes[0]
-    symbology = barcode.type
-    payload = barcode.data.decode("utf-8")
-    logger.info("pyzbar decoded: symbology=%s, payload=%s", symbology, payload)
-
-    # Normalize symbology names to match our expectations.
-    if symbology in ("EAN13", "EAN 13"):
-        symbology = "EAN13"
-    elif symbology in ("UPC A", "UPC-A"):
-        symbology = "UPCA"
-    elif symbology == "QR CODE":
-        symbology = "QR"
-    else:
-        # We only support EAN13, UPCA, and QR for now.
-        # Return None symbology to indicate unsupported type.
-        logger.info("Decoded unsupported symbology: %s", symbology)
-        return None
-
-    return {"symbology": symbology, "payload": payload}
+    logger.info("pyzbar found no barcodes in any variant")
+    return None
 
 
 def _decode_with_zxing_cpp(image_bytes: bytes) -> Optional[Dict[str, Optional[str]]]:
-    """Attempt to decode using zxing-cpp as a fallback."""
+    """Attempt to decode using zxing-cpp with multiple preprocessing variants."""
     if not ZXING_CPP_AVAILABLE:
         logger.info("zxing-cpp not available")
         return None
 
     try:
-        # Convert bytes to PIL Image then to numpy array (RGB)
-        from PIL import Image
-        import numpy as np
-
-        image = Image.open(io.BytesIO(image_bytes))
-        logger.info(
-            "zxing-cpp input image: mode=%s, size=%s", image.mode, image.size
-        )
-        # Ensure we have RGB (or grayscale) array
-        if image.mode != "RGB":
-            image = image.convert("RGB")
-            logger.info("Converted image to RGB")
-        img_array = np.array(image)
-        logger.info(
-            "zxing-cpp numpy array shape=%s, dtype=%s", img_array.shape, img_array.dtype
-        )
-
-        # zxing-cpp expects a numpy array (H, W, 3) uint8 RGB
-        barcodes = zxingcpp.read_barcodes(img_array)
-        logger.info("zxing-cpp raw barcodes result: %s", barcodes)
-
-        if not barcodes:
-            logger.info("zxing-cpp found no barcodes")
-            return None
-
-        # Take the first barcode
-        barcode = barcodes[0]
-        raw = barcode.text
-        logger.info("zxing-cpp barcode text: %s", raw)
-        if raw is None:
-            logger.info("zxing-cpp barcode text is None")
-            return None
-
-        # Get symbology from barcode.format (enum)
-        fmt = barcode.format
-        # The format attribute is an enum; we can get its name
-        # Example: fmt.name -> 'EAN_13', 'UPC_A', 'QR_CODE'
-        symbology = getattr(fmt, "name", None)
-        if symbology is None:
-            # fallback to string representation
-            symbology = str(fmt).split(".")[-1] if "." in str(fmt) else str(fmt)
-        logger.info("zxing-cpp raw symbology: %s", symbology)
-
-        # Normalize symbology names.
-        if symbology in ("EAN_13", "EAN13"):
-            symbology = "EAN13"
-        elif symbology in ("UPC_A", "UPCA"):
-            symbology = "UPCA"
-        elif symbology == "QR_CODE":
-            symbology = "QR"
-        else:
-            logger.info("zxing-cpp decoded unsupported symbology: %s", symbology)
-            return None
-
-        payload = raw
-        logger.info(
-            "zxing-cpp decoded barcode: symbology=%s, payload=%s", symbology, payload
-        )
-        return {"symbology": symbology, "payload": payload}
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.warning("zxing-cpp failed to decode image: %s", exc, exc_info=True)
+        pil_image = Image.open(io.BytesIO(image_bytes))
+        logger.info("zxing-cpp input image: mode=%s, size=%s", pil_image.mode, pil_image.size)
+    except Exception as exc:
+        logger.warning("Failed to open image for zxing-cpp: %s", exc)
         return None
+
+    for idx, variant in enumerate(_preprocess_image_variants(pil_image)):
+        try:
+            # Convert to numpy array as expected by zxing-cpp
+            if variant.mode == "L":
+                arr = np.array(variant)  # shape (H, W)
+            else:
+                arr = np.array(variant.convert("RGB"))  # ensure RGB
+            logger.info("zxing-cpp variant %d: array shape=%s, dtype=%s", idx, arr.shape, arr.dtype)
+            barcodes = zxingcpp.read_barcodes(arr)
+            logger.info("zxing-cpp variant %d: raw barcodes result: %s", idx, barcodes)
+            if barcodes:
+                barcode = barcodes[0]
+                raw = barcode.text
+                logger.info("zxing-cpp variant %d barcode text: %s", idx, raw)
+                if raw is None:
+                    logger.info("zxing-cpp variant %d barcode text is None", idx)
+                    continue
+                # Get symbology from barcode.format (enum)
+                fmt = barcode.format
+                symbology = getattr(fmt, "name", None)
+                if symbology is None:
+                    symbology = str(fmt).split(".")[-1] if "." in str(fmt) else str(fmt)
+                logger.info("zxing-cpp variant %d raw symbology: %s", idx, symbology)
+                # Normalize symbology names.
+                if symbology in ("EAN_13", "EAN13"):
+                    symbology = "EAN13"
+                elif symbology in ("UPC_A", "UPCA"):
+                    symbology = "UPCA"
+                elif symbology == "QR_CODE":
+                    symbology = "QR"
+                else:
+                    logger.info("zxing-cpp variant %d decoded unsupported symbology: %s", idx, symbology)
+                    continue
+                payload = raw
+                logger.info(
+                    "zxing-cpp variant %d decoded barcode: symbology=%s, payload=%s", idx, symbology, payload
+                )
+                return {"symbology": symbology, "payload": payload}
+        except Exception as exc:
+            logger.warning("zxing-cpp variant %d failed: %s", idx, exc)
+            continue
+
+    logger.info("zxing-cpp found no barcodes in any variant")
+    return None
 
 
 def decode_image(image_bytes: bytes) -> Dict[str, Optional[str]]:
