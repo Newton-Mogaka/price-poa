@@ -257,7 +257,7 @@ def draw_footer(img, draw, y_top, canvas_height, note):
     w, h = text_size(draw, text, font)
     draw.text(((IMG_WIDTH - w) / 2, y_top + (canvas_height - y_top - h) / 2 - 4), text, fill=(255, 255, 255), font=font)
     tagline_font = get_font(12)
-    tagline = "PricePoa \u2022 Compare grocery prices instantly"
+    tagline = "PricePoa \u2022 Compare shopping prices instantly"
     tw, th = text_size(draw, tagline, tagline_font)
     draw.text(((IMG_WIDTH - tw) / 2, canvas_height - th - 10), tagline, fill=TEXT_ON_HEADER_MUTED, font=tagline_font)
 
