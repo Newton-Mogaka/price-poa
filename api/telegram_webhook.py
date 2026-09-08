@@ -1581,9 +1581,11 @@ async def telegram_webhook(
         image_resp = requests.get(image_url)
         image_resp.raise_for_status()
         image_bytes = image_resp.content
+        logger.info("Telegram scan photo size: %d bytes", len(image_bytes))
 
         # Decode the image
         decoder_result = decode_image(image_bytes)
+        logger.info("Decoder result: symbology=%s, payload=%s", decoder_result.get("symbology"), decoder_result.get("payload"))
 
         # Route to product
         router_result = await route_to_product(decoder_result, db)
