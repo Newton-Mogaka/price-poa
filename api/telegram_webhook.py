@@ -1810,6 +1810,11 @@ async def telegram_webhook(
         send_telegram_text(chat_id, processed["data"]["message"])
         return JSONResponse(status_code=200, content={"status": "accepted"})
 
+    # Handle scan initiated (from /scan command)
+    if processed["type"] == "scan_initiated":
+        send_telegram_text(chat_id, processed["data"]["message"])
+        return JSONResponse(status_code=200, content={"status": "accepted"})
+
     # Generate the infographic
     image_bytes = None
     try:
