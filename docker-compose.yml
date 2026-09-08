@@ -109,6 +109,7 @@ services:
       - ./database:/app/database
       - /app/__pycache__
       - hf_cache:/root/.cache/huggingface
+      - ./search_pipeline:/app/search_pipeline
     networks:
       - pricepoa_network
     depends_on:

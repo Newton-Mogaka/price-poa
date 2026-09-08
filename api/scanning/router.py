@@ -14,7 +14,7 @@ from typing import Dict, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from api.query_engine import find_product
+from query_engine import find_product
 
 logger = logging.getLogger(__name__)
 

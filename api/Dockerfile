@@ -21,8 +21,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 COPY api/ .
 COPY database/ ./database
 COPY intelligence/ ./intelligence
+COPY search_pipeline/ ./search_pipeline
 
-ENV PYTHONPATH=/app:/app/intelligence
+ENV PYTHONPATH=/app:/app/intelligence:/app/search_pipeline
 
 # Expose the port the app runs on
 EXPOSE 8000
