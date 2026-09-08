@@ -25,4 +25,4 @@ qdrant-client
 
 #SCANNING REQUIREMENTS
 pyzbar
-zxing
+zxing-cpp

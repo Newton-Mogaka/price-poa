@@ -1,7 +1,7 @@
 """
 scanning.decoder
 ~~~~~~~~~~~~~~~~
-Decode barcodes and QR codes from an image using pyzbar (with zxing fallback).
+Decode barcodes and QR codes from an image using pyzbar (with zxing-cpp fallback).
 
 Returns a dict: {"symbology": str | None, "payload": str | None}
 where symbology is one of "EAN13", "UPCA", "QR", or None if nothing decoded.
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from typing import Dict, Optional
+import io
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +24,13 @@ except ImportError:  # pragma: no cover
     ZBarSymbol = None  # type: ignore
     PYZBAR_AVAILABLE = False
 
-# Fallback to zxing if pyzbar not available or fails
+# Fallback to zxing-cpp if pyzbar not available or fails
 try:
-    from zxing import BarCodeReader
-    ZXING_AVAILABLE = True
+    import zxingcpp
+    ZXING_CPP_AVAILABLE = True
 except ImportError:  # pragma: no cover
-    BarCodeReader = None  # type: ignore
-    ZXING_AVAILABLE = False
+    zxingcpp = None  # type: ignore
+    ZXING_CPP_AVAILABLE = False
 
 
 def _decode_with_pyzbar(image_bytes: bytes) -> Optional[Dict[str, Optional[str]]]:
@@ -69,41 +70,48 @@ def _decode_with_pyzbar(image_bytes: bytes) -> Optional[Dict[str, Optional[str]]
         # We only support EAN13, UPCA, and QR for now.
         # Return None symbology to indicate unsupported type.
         logger.info("Decoded unsupported symbology: %s", symbology)
+        return None)
         return None
 
     return {"symbology": symbology, "payload": payload}
 
 
-def _decode_with_zxing(image_bytes: bytes) -> Optional[Dict[str, Optional[str]]]:
-    """Attempt to decode using zxing as a fallback."""
-    if not ZXING_AVAILABLE:
+def _decode_with_zxing_cpp(image_bytes: bytes) -> Optional[Dict[str, Optional[str]]]:
+    """Attempt to decode using zxing-cpp as a fallback."""
+    if not ZXING_CPP_AVAILABLE:
         return None
 
     try:
-        # zxing expects a file path or raw bytes? We'll try to use it with bytes.
-        # Note: the zxing Python wrapper may require a file. We'll create a temporary file.
-        import tempfile
-        import os
+        # Convert bytes to PIL Image then to numpy array (RGB)
+        from PIL import Image
+        import numpy as np
 
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-            tmp.write(image_bytes)
-            tmp.flush()
-            reader = BarCodeReader()
-            barcode = reader.decode(tmp.name)
+        image = Image.open(io.BytesIO(image_bytes))
+        # Ensure we have RGB (or grayscale) array
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+        img_array = np.array(image)
 
-        # Clean up the temporary file
-        os.unlink(tmp.name)
+        # zxing-cpp expects a numpy array (H, W, 3) uint8 RGB
+        barcodes = zxingcpp.read_barcodes(img_array)
 
-        if barcode is None:
+        if not barcodes:
             return None
 
-        # zxing returns a BarCode object with raw and parsed attributes.
-        raw = barcode.raw
+        # Take the first barcode
+        barcode = barcodes[0]
+        raw = barcode.text
         if raw is None:
             return None
 
-        symbology = barcode.format
-        payload = raw
+        # Get symbology from barcode.format (enum)
+        fmt = barcode.format
+        # The format attribute is an enum; we can get its name
+        # Example: fmt.name -> 'EAN_13', 'UPC_A', 'QR_CODE'
+        symbology = getattr(fmt, "name", None)
+        if symbology is None:
+            # fallback to string representation
+            symbology = str(fmt).split(".")[-1] if "." in str(fmt) else str(fmt)
 
         # Normalize symbology names.
         if symbology in ("EAN_13", "EAN13"):
@@ -113,12 +121,13 @@ def _decode_with_zxing(image_bytes: bytes) -> Optional[Dict[str, Optional[str]]]
         elif symbology == "QR_CODE":
             symbology = "QR"
         else:
-            logger.info("zxing decoded unsupported symbology: %s", symbology)
+            logger.info("zxing-cpp decoded unsupported symbology: %s", symbology)
             return None
 
+        payload = raw
         return {"symbology": symbology, "payload": payload}
     except Exception as exc:  # pragma: no cover - defensive
-        logger.warning("zxing failed to decode image: %s", exc)
+        logger.warning("zxing-cpp failed to decode image: %s", exc)
         return None
 
 
@@ -135,8 +144,8 @@ def decode_image(image_bytes: bytes) -> Dict[str, Optional[str]]:
     if result is not None:
         return result
 
-    # Fall back to zxing
-    result = _decode_with_zxing(image_bytes)
+    # Fall back to zxing-cpp
+    result = _decode_with_zxing_cpp(image_bytes)
     if result is not None:
         return result
 
