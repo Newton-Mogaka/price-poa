@@ -1080,6 +1080,22 @@ async def process_telegram_message(chat_id: int, text: str, background_tasks: Op
             }
         }
 
+    # Handle /scan command to initiate barcode/QR scanning
+    if text.startswith("/scan"):
+        # Set user state to indicate they're ready to scan
+        db = await get_database()
+        await db.users.update_one(
+            {"telegram_id": chat_id},
+            {"$set": {"scan_mode": True, "scan_mode_updated_at": datetime.now(timezone.utc)}},
+            upsert=True
+        )
+        return {
+            "type": "scan_initiated",
+            "data": {
+                "message": "Please send a photo of the barcode or QR code you want to scan."
+            }
+        }
+
     # Handle text-based /rating command (fallback for when there's no inline keyboard)
     if text.startswith("/rating"):
         parts = text.split(maxsplit=2)
@@ -1534,9 +1550,26 @@ async def telegram_webhook(
         logger.info("Message has no chat id (e.g. photo/sticker) - ignoring")
         return JSONResponse(status_code=200, content={"status": "ok"})
 
-    # Check if this is an image message with "/scan" caption
+    # Check if this is an image message for scanning (after /scan command)
     scan_processed = None
-    if message.get("photo") and message.get("caption") == "/scan":
+    is_scan_photo = False
+
+    # Check if user is in scan mode (from previous /scan command)
+    db = await get_database()
+    user = await db.users.find_one({"telegram_id": chat_id})
+    user_in_scan_mode = user and user.get("scan_mode", False)
+
+    # Process as scan photo if user is in scan mode (from /scan command) AND sent a photo
+    if message.get("photo") and user_in_scan_mode:
+        # New behavior: user in scan mode sent a photo
+        is_scan_photo = True
+        # Clear scan mode after processing
+        await db.users.update_one(
+            {"telegram_id": chat_id},
+            {"$unset": {"scan_mode": ""}, "$set": {"scan_mode_cleared_at": datetime.now(timezone.utc)}}
+        )
+
+    if is_scan_photo:
         # Download the image
         photo = message["photo"][-1]  # get the largest photo
         file_id = photo["file_id"]
@@ -1553,7 +1586,6 @@ async def telegram_webhook(
         decoder_result = decode_image(image_bytes)
 
         # Route to product
-        db = await get_database()
         router_result = await route_to_product(decoder_result, db)
 
         # Handle router_result
