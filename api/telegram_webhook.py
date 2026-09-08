@@ -1705,11 +1705,20 @@ async def telegram_webhook(
         logger.error(f"Failed to log query: {e}")
 
     if processed["type"] == "not_found":
-        query_text = processed["data"]["query_text"]
-        fallback_text = (
-            f'Sorry, I couldn\'t find "{query_text}" in our database yet. '
-            "Try the exact product name, e.g. \"Cooking Oil\" or \"unga\"."
-        )
+        # Handle both types of not_found responses:
+        # 1. Those with "query_text" key (from product search)
+        # 2. Those with "message" key (from validation errors, etc.)
+        if "query_text" in processed["data"]:
+            query_text = processed["data"]["query_text"]
+            fallback_text = (
+                f'Sorry, I couldn\'t find "{query_text}" in our database yet. '
+                "Try the exact product name, e.g. \"Cooking Oil\" or \"unga\"."
+            )
+        else:
+            # Use the message directly if available, or provide a default
+            query_text = processed["data"].get("message", "something")
+            fallback_text = query_text
+
         send_telegram_text(chat_id, fallback_text)
         return JSONResponse(status_code=200, content={"status": "accepted"})
 
