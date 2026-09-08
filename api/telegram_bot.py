@@ -41,12 +41,13 @@ def send_telegram_text(chat_id: int, text: str, reply_markup: dict = None) -> bo
     }
     if reply_markup is not None:
         payload["reply_markup"] = reply_markup
-    logger.debug(f"Telegram sendMessage payload: {payload}")
+    logger.info(f"Telegram sendMessage payload: {payload}")
     try:
         # Sends POST request to Telegram API
         resp = requests.post(url, json=payload, timeout=10)
         # Raises an HTTPError if the HTTP request returned an unsuccessful status code
         resp.raise_for_status()
+        logger.info(f"Telegram sendMessage succeeded: {resp.status_code}")
         return True
     except requests.RequestException as e:
         logger.error(f"Failed to send Telegram text message: {e}")

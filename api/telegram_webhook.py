@@ -1096,7 +1096,8 @@ async def process_telegram_message(chat_id: int, text: str, background_tasks: Op
                     {
                         "text": "📸 Scan barcode",
                         "request_photo": {
-                            "request_id": 1
+                            "request_id": 1,
+                            "photo_type": {"type": "photo"}
                         }
                     }
                 ]
@@ -1833,6 +1834,7 @@ async def telegram_webhook(
         data = processed["data"]
         message = data["message"]
         reply_markup = data.get("reply_markup")
+        logger.info(f"Sending scan initiation message with reply_markup: {reply_markup}")
         if reply_markup:
             success = send_telegram_text(chat_id, message, reply_markup)
         else:
