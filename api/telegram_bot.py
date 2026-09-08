@@ -41,6 +41,7 @@ def send_telegram_text(chat_id: int, text: str, reply_markup: dict = None) -> bo
     }
     if reply_markup is not None:
         payload["reply_markup"] = reply_markup
+    logger.debug(f"Telegram sendMessage payload: {payload}")
     try:
         # Sends POST request to Telegram API
         resp = requests.post(url, json=payload, timeout=10)
