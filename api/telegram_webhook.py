@@ -1089,10 +1089,27 @@ async def process_telegram_message(chat_id: int, text: str, background_tasks: Op
             {"$set": {"scan_mode": True, "scan_mode_updated_at": datetime.now(timezone.utc)}},
             upsert=True
         )
+        # Build keyboard with button that requests a photo
+        reply_markup = {
+            "keyboard": [
+                [
+                    {
+                        "text": "📸 Scan barcode",
+                        "request_photo": {
+                            "request_id": 1,
+                            "photo_types": {"type": "photo"}
+                        }
+                    }
+                ]
+            ],
+            "resize_keyboard": True,
+            "one_time_keyboard": True
+        }
         return {
             "type": "scan_initiated",
             "data": {
-                "message": "Please send a photo of the barcode or QR code you want to scan."
+                "message": "Please tap the button below to take a barcode/QR photo:",
+                "reply_markup": reply_markup
             }
         }
 
@@ -1814,7 +1831,15 @@ async def telegram_webhook(
 
     # Handle scan initiated (from /scan command)
     if processed["type"] == "scan_initiated":
-        send_telegram_text(chat_id, processed["data"]["message"])
+        data = processed["data"]
+        message = data["message"]
+        reply_markup = data.get("reply_markup")
+        if reply_markup:
+            success = send_telegram_text(chat_id, message, reply_markup)
+        else:
+            success = send_telegram_text(chat_id, message)
+        if not success:
+            logger.error("Failed to send scan initiation message")
         return JSONResponse(status_code=200, content={"status": "accepted"})
 
     # Generate the infographic

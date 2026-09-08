@@ -32,13 +32,15 @@ def verify_telegram_secret(request_secret: str) -> bool:
     return request_secret == TELEGRAM_WEBHOOK_SECRET
 
 
-def send_telegram_text(chat_id: int, text: str) -> bool:
+def send_telegram_text(chat_id: int, text: str, reply_markup: dict = None) -> bool:
     """Send a plain text message to a chat."""
     url = f"{TELEGRAM_API_BASE}/sendMessage"
     payload = {
         "chat_id": chat_id,
         "text": text,
     }
+    if reply_markup is not None:
+        payload["reply_markup"] = reply_markup
     try:
         # Sends POST request to Telegram API
         resp = requests.post(url, json=payload, timeout=10)
