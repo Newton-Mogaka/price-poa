@@ -140,6 +140,76 @@ def parse_amount(value) -> float:
         return 0.0
 
 
+def _parse_promotion_details(promotion_details: str, current_price: float) -> dict:
+    """Parse promotion details string to extract savings information.
+
+    Expected format: 'Was KES 164.00 (12.2% Off)' or similar.
+    Returns dict with keys: 'amount_text' (formatted savings amount), 'percentage' (savings percentage)
+    """
+    import re
+
+    # Default return value
+    result = {
+        'amount_text': '0',
+        'percentage': 0
+    }
+
+    if not promotion_details:
+        return result
+
+    # Extract the original price (after "Was KES" or "Was ")
+    original_price_match = re.search(r'Was\s*KES\s*([\d,]+\.?\d*)', promotion_details, re.IGNORECASE)
+    if not original_price_match:
+        # Try without KES prefix
+        original_price_match = re.search(r'Was\s*([\d,]+\.?\d*)', promotion_details, re.IGNORECASE)
+
+    # Extract the percentage (inside parentheses before % Off)
+    percentage_match = re.search(r'\(([\d.]+)%\s*Off\)', promotion_details, re.IGNORECASE)
+
+    original_price = None
+    savings_percentage = None
+
+    if original_price_match:
+        try:
+            original_price = parse_amount(original_price_match.group(1))
+        except:
+            pass
+
+    if percentage_match:
+        try:
+            savings_percentage = float(percentage_match.group(1))
+        except:
+            pass
+
+    # Calculate savings amount if we have enough information
+    if original_price is not None and original_price > 0:
+        if savings_percentage is not None:
+            # Use the percentage to calculate savings
+            savings_amount = original_price * (savings_percentage / 100)
+        else:
+            # Calculate percentage from price difference
+            savings_amount = original_price - current_price
+            if original_price > 0:
+                savings_percentage = (savings_amount / original_price) * 100
+
+        # Format the savings amount
+        if savings_amount >= 1000:
+            amount_text = f"{savings_amount/1000:.1f}k"
+        else:
+            amount_text = f"{int(savings_amount)}" if savings_amount == int(savings_amount) else f"{savings_amount:.1f}"
+
+        result['amount_text'] = amount_text
+        if savings_percentage is not None:
+            result['percentage'] = int(savings_percentage) if savings_percentage == int(savings_percentage) else savings_percentage
+
+    # If we have percentage but couldn't calculate amount, just show percentage
+    elif savings_percentage is not None and savings_percentage > 0:
+        result['amount_text'] = f"{savings_percentage}%"
+        result['percentage'] = savings_percentage
+
+    return result
+
+
 def draw_header(img, draw, eyebrow, title, subtitle):
     """Gradient banner with brand pill, title (wraps if needed), subtitle line.
     Returns the y-coordinate where header content ends."""
@@ -183,7 +253,7 @@ def draw_section_title(draw, y, text):
     return y + FONT_SIZE_SECTION + 20
 
 
-def draw_ranked_row(draw, y, width, name, amount_label, amount_value, max_value, rank, is_offer=False):
+def draw_ranked_row(draw, y, width, name, amount_label, amount_value, max_value, rank, is_offer=False, promotion_details=None):
     """One card: rank badge + name (+offer pill) on top, price on the right,
     a proportional mini-bar underneath. Returns y after the card."""
     card_h = 92
@@ -238,6 +308,16 @@ def draw_ranked_row(draw, y, width, name, amount_label, amount_value, max_value,
     fill_w = max(int(bar_w * frac), 6)
     draw.rounded_rectangle([bar_x0, bar_y, bar_x0 + fill_w, bar_y + 8], radius=4, fill=accent)
 
+    # Display savings information if this is an offer with promotion details
+    if is_offer and promotion_details:
+        savings_info = _parse_promotion_details(promotion_details, amount_value)
+        if savings_info:
+            savings_font = get_font(FONT_SIZE_SMALL, bold=True)
+            # Show savings as text below the price
+            savings_text = f"Save {savings_info['amount_text']} ({savings_info['percentage']}% Off)"
+            sw, _ = text_size(draw, savings_text, savings_font)
+            draw.text((x1 - 22 - sw, y + 40), savings_text, fill=ORANGE, font=savings_font)
+
     return y + card_h + 14
 
 
@@ -291,11 +371,15 @@ def generate_single_product_image(data: dict) -> bytes:
     stores = data.get("stores", [])
     parsed = []
     for s in stores:
-        parsed.append({
+        store_data = {
             "name": s.get("name", "Unknown"),
             "value": parse_amount(s.get("price", 0)),
             "offer": bool(s.get("offer", False)),
-        })
+        }
+        # Add promotion details if available
+        if s.get("promotion_details"):
+            store_data["promotion_details"] = s["promotion_details"]
+        parsed.append(store_data)
     parsed.sort(key=lambda s: s["value"])
     max_value = max((s["value"] for s in parsed), default=1) or 1
 
@@ -316,7 +400,7 @@ def generate_single_product_image(data: dict) -> bytes:
         y = draw_section_title(draw, y, "Price Comparison")
         for rank, s in enumerate(parsed):
             y = draw_ranked_row(draw, y, content_width, s["name"], f"KES {s['value']:,.0f}",
-                                 s["value"], max_value, rank, is_offer=s["offer"])
+                                 s["value"], max_value, rank, is_offer=s["offer"], promotion_details=s.get("promotion_details"))
 
         if len(parsed) >= 2:
             cheapest, priciest = parsed[0], parsed[-1]
@@ -410,7 +494,7 @@ def generate_shopping_list_image(data: dict) -> bytes:
                     # But fix the negative indexing issue in draw_ranked_row
                     product_rank = 999  # High rank to avoid special styling
                     y = draw_ranked_row(draw, y, content_width, f"  {product_name}", price_str,
-                                        parse_amount(price_str), max_value, product_rank, is_offer=is_offer)
+                                        parse_amount(price_str), max_value, product_rank, is_offer=is_offer, promotion_details=item.get("promotion_details"))
             else:
                 # No products for this store
                 draw.text((PADDING + 20, y), "  No products available", fill=TEXT_MUTED, font=get_font(FONT_SIZE_BODY))
@@ -469,7 +553,7 @@ def generate_product_options_image(data: dict) -> bytes:
         for rank, opt in enumerate(options):
             label = f"{opt['name']} \u2022 {opt['store_name']}"
             y = draw_ranked_row(draw, y, content_width, label, opt["price_label"],
-                                opt["price_value"], max_value, rank, is_offer=opt["offer"])
+                                opt["price_value"], max_value, rank, is_offer=opt["offer"], promotion_details=opt.get("promotion_details"))
     else:
         draw.text((PADDING, y), "No matching products found.", fill=TEXT_MUTED, font=get_font(FONT_SIZE_BODY))
         y += FONT_SIZE_BODY + 20

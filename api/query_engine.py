@@ -304,11 +304,17 @@ async def get_product_prices(
         store = stores_by_id.get(price["store_id"])
         if not store:
             continue  # orphaned reference, skip rather than crash
-        store_entries.append({
+        entry = {
             "name": f"{store['chain']} - {store['branch']}",
             "price": f"{price['price_kes']:.0f} KES",
             "offer": bool(price.get("is_promotional", False)),
-        })
+        }
+        # Add promotion details if available for infographic enhancements
+        if price.get("is_promotional") and price.get("promotion_details"):
+            entry["promotion_details"] = price["promotion_details"]
+            # Also store the original price if we can parse it from promotion_details
+            # or we could calculate it from price_kes and promotion details
+        store_entries.append(entry)
 
     if not store_entries:
         # Cache negative result briefly
@@ -467,6 +473,8 @@ async def find_product_matches(
                     ),
                     "pipeline",
                 ),
+                # Add promotion details if available for infographic enhancements
+                "promotion_details": cheapest.get("promotion_details")
             })
 
         return results

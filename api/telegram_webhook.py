@@ -915,16 +915,21 @@ async def get_shopping_list_data(db, products: List[Dict[str, Any]]) -> Dict[str
                 price = price_doc[0]
                 price_kes = price["price_kes"]
                 is_promotional = price.get("is_promotional", False)
+                promotion_details = price.get("promotion_details")
 
                 # Format price
                 price_str = f"{int(price_kes)} KES" if price_kes == int(price_kes) else f"{price_kes:.1f} KES"
 
                 # Add to store items
-                store_items[store_id].append({
+                item_data = {
                     "name": product_name,
                     "price": price_str,
                     "offer": is_promotional
-                })
+                }
+                # Add promotion details if available for infographic enhancements
+                if promotion_details:
+                    item_data["promotion_details"] = promotion_details
+                store_items[store_id].append(item_data)
 
                 total_price += price_kes
                 found_products += 1
@@ -943,16 +948,21 @@ async def get_shopping_list_data(db, products: List[Dict[str, Any]]) -> Dict[str
                         alt_price = alt_price_doc[0]
                         alt_price_kes = alt_price["price_kes"]
                         is_promotional = alt_price.get("is_promotional", False)
+                        alt_promotion_details = alt_price.get("promotion_details")
 
                         # Format price
                         price_str = f"{int(alt_price_kes)} KES" if alt_price_kes == int(alt_price_kes) else f"{alt_price_kes:.1f} KES"
 
                         # Add to store items with indication it's an alternative
-                        store_items[store_id].append({
+                        item_data = {
                             "name": f"{product_name} ({alternative_product['name']})",
                             "price": price_str,
                             "offer": is_promotional
-                        })
+                        }
+                        # Add promotion details if available for infographic enhancements
+                        if alt_promotion_details:
+                            item_data["promotion_details"] = alt_promotion_details
+                        store_items[store_id].append(item_data)
 
                         total_price += alt_price_kes
                         found_products += 1
