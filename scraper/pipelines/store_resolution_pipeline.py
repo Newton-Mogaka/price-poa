@@ -6,6 +6,7 @@ Does NOT perform price validation or product normalization.
 import logging
 import scrapy
 from typing import Union, Dict, Any
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -53,10 +54,37 @@ class StoreResolutionPipeline:
             store = await self.db.stores.find_one({"chain": chain, "branch": branch})
             if store:
                 store_id = str(store["_id"])
+                # Enrich existing store if it was missing town/county/coordinates
+                updates = {}
+                if not store.get("town") and item_dict.get("store_town"):
+                    updates["town"] = item_dict["store_town"]
+                if not store.get("county") and item_dict.get("store_county"):
+                    updates["county"] = item_dict["store_county"]
+                if store.get("gps_latitude") is None and item_dict.get("gps_latitude") is not None:
+                    updates["gps_latitude"] = item_dict["gps_latitude"]
+                if store.get("gps_longitude") is None and item_dict.get("gps_longitude") is not None:
+                    updates["gps_longitude"] = item_dict["gps_longitude"]
+                if not store.get("address") and item_dict.get("store_address"):
+                    updates["address"] = item_dict["store_address"]
+                if updates:
+                    updates["updated_at"] = datetime.utcnow()
+                    await self.db.stores.update_one({"_id": store["_id"]}, {"$set": updates})
             else:
-                result = await self.db.stores.insert_one({"chain": chain, "branch": branch})
+                store_doc = {
+                    "chain": chain,
+                    "branch": branch,
+                    "town": item_dict.get("store_town", "Nairobi"),
+                    "county": item_dict.get("store_county", "Nairobi"),
+                    "gps_latitude": item_dict.get("gps_latitude"),
+                    "gps_longitude": item_dict.get("gps_longitude"),
+                    "address": item_dict.get("store_address"),
+                    "is_active": True,
+                    "created_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow()
+                }
+                result = await self.db.stores.insert_one(store_doc)
                 store_id = str(result.inserted_id)
-                logger.info(f"Created new store: {chain} - {branch} (ID: {store_id})")
+                logger.info(f"Created new store: {chain} - {branch} in {store_doc['town']} (ID: {store_id})")
 
             item_dict['store_id'] = store_id
 
