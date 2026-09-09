@@ -194,6 +194,16 @@ All dependent services (`api`, `scraper`, `intelligence`, `mongo-express`, etc.)
   - Ran `docker compose exec scraper python scraper/seed_quickmart_stores.py`.
   - Confirmed 73 Quickmart stores populated in `db.stores` (total stores in database: 75 including Naivas and Carrefour).
 
+#### 12. `QUICKMART_COMMANDS.md` — Comprehensive Quickmart Docker Commands Cheat-Sheet
+- **Files:** [`QUICKMART_COMMANDS.md`](QUICKMART_COMMANDS.md), [`ReadMe.md`](ReadMe.md)
+- **Addition:** Created an end-to-end testing guide in the repository root detailing all Docker Compose commands for other developers:
+  1. Service startup & build commands (`docker compose up -d mongo scraper`, `build scraper`).
+  2. One-command store seeding (`docker compose exec scraper python scraper/seed_quickmart_stores.py`).
+  3. Single-branch crawls with item limits for Kisumu, Nairobi, Nakuru, Mombasa.
+  4. Multi-branch batch crawls via `scraper/batch_quickmart.py`.
+  5. MongoDB verification commands via Python one-liners, `mongosh`, and Mongo Express.
+  6. Real-time log monitoring commands.
+
 ---
 
 ### Verification
