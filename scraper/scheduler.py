@@ -31,6 +31,7 @@ class ScrapeScheduler:
         job_id: str,
         spider_name: str,
         schedule_type: str = "interval",
+        spider_kwargs: Optional[Dict[str, Any]] = None,
         **schedule_kwargs
     ) -> bool:
         """
@@ -40,6 +41,7 @@ class ScrapeScheduler:
             job_id: Unique identifier for the job
             spider_name: Name of the spider to run
             schedule_type: Either "interval" or "cron"
+            spider_kwargs: Optional kwargs to pass to spider (e.g. {'town': 'Kisumu'})
             **schedule_kwargs: Arguments for the trigger (hours, minutes, etc. for interval;
                               cron expressions for cron)
 
@@ -69,7 +71,7 @@ class ScrapeScheduler:
             job = self.scheduler.add_job(
                 func=self._run_spider_job,
                 trigger=trigger,
-                args=[spider_name],
+                args=[spider_name, spider_kwargs or {}],
                 id=job_id,
                 name=f"Scrape {spider_name}",
                 replace_existing=True,
@@ -204,15 +206,17 @@ class ScrapeScheduler:
             jobs_status[job_id] = self.get_job_status(job_id)
         return jobs_status
 
-    async def _run_spider_job(self, spider_name: str) -> None:
+    async def _run_spider_job(self, spider_name: str, spider_kwargs: Optional[Dict[str, Any]] = None) -> None:
         """
         Execute a scraping spider job.
         This runs in a separate thread from the scheduler.
 
         Args:
             spider_name: Name of the spider to run
+            spider_kwargs: Optional keyword arguments for the spider
         """
-        logger.info(f"Starting scheduled scrape job for spider: {spider_name}")
+        kwargs_desc = f" with kwargs {spider_kwargs}" if spider_kwargs else ""
+        logger.info(f"Starting scheduled scrape job for spider: {spider_name}{kwargs_desc}")
 
         try:
             # Import here to avoid circular imports
@@ -228,7 +232,7 @@ class ScrapeScheduler:
 
             # Create and run crawler process
             process = CrawlerProcess(settings)
-            process.crawl(spider_name)
+            process.crawl(spider_name, **(spider_kwargs or {}))
             process.start()  # This blocks until crawling is finished
 
             logger.info(f"Completed scrape job for spider: {spider_name}")
@@ -263,16 +267,39 @@ def setup_default_schedules():
         minute=0
     )
 
-    # Add spiders for other stores
-    stores = ["carrefour_spider", "quickmart_spider", "chandarana_spider"]
-    for i, spider_name in enumerate(stores):
-        scrape_scheduler.add_scrape_job(
-            job_id=f"daily_{spider_name}",
-            spider_name=spider_name,
-            schedule_type="cron",
-            hour=2,
-            minute=(i + 1) * 15  # Stagger at 2:15, 2:30, 2:45 AM
-        )
+    # Localized Quickmart schedules (Nairobi & Kisumu)
+    scrape_scheduler.add_scrape_job(
+        job_id="daily_quickmart_nairobi",
+        spider_name="quickmart_spider",
+        spider_kwargs={"town": "Nairobi", "branch": "Pioneer CBD"},
+        schedule_type="cron",
+        hour=2,
+        minute=15
+    )
+    scrape_scheduler.add_scrape_job(
+        job_id="daily_quickmart_kisumu",
+        spider_name="quickmart_spider",
+        spider_kwargs={"town": "Kisumu", "branch": "Kondele"},
+        schedule_type="cron",
+        hour=2,
+        minute=30
+    )
+
+    # Other stores
+    scrape_scheduler.add_scrape_job(
+        job_id="daily_carrefour_spider",
+        spider_name="carrefour_spider",
+        schedule_type="cron",
+        hour=2,
+        minute=45
+    )
+    scrape_scheduler.add_scrape_job(
+        job_id="daily_chandarana_spider",
+        spider_name="chandarana_spider",
+        schedule_type="cron",
+        hour=2,
+        minute=55
+    )
 
     # Hourly promotional checks (every 6 hours)
     scrape_scheduler.add_scrape_job(
