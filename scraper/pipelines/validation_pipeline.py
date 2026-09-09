@@ -4,6 +4,7 @@ Focuses solely on validation: ensuring data integrity and correctness.
 Does NOT perform cleaning, normalization, or any business logic beyond validation.
 """
 import logging
+import re
 from typing import Any, Dict, Union
 import scrapy
 from scrapy.exceptions import DropItem
@@ -90,7 +91,17 @@ class PriceValidationPipeline:
         price_val = item.get('price_kes')
         if price_val is not None:
             try:
-                price_float = float(price_val)
+                if isinstance(price_val, (int, float)):
+                    price_float = float(price_val)
+                elif isinstance(price_val, str):
+                    val_str = price_val.replace(',', '').strip()
+                    match = re.search(r'\d+(?:\.\d+)?', val_str)
+                    if not match:
+                        raise ValueError(f"No numeric price found in: {price_val}")
+                    price_float = float(match.group(0))
+                else:
+                    price_float = float(price_val)
+
                 if price_float <= 0:
                     raise DropItem(f"Price must be positive, got: {price_val}")
                 item['price_kes'] = price_float  # Coerce to float for consistency
