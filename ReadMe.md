@@ -94,6 +94,21 @@ docker compose run --rm scraper python scraper/worker.py --mode once --spider th
 docker compose run --rm scraper python inspect_selectors.py https://ke.thebar.com/collections/party
 ```
 
+### Quickmart Multi-Branch Scraping & Seeding
+Quickmart supports localized branch scraping across 72+ branches in Kenya with custom coordinates and Growcer cookies. For full command reference, see the dedicated guide in [`QUICKMART_COMMANDS.md`](QUICKMART_COMMANDS.md).
+
+Quick test commands:
+```bash
+# 1. Pre-populate all 73 branches into db.stores
+docker compose exec scraper python scraper/seed_quickmart_stores.py
+
+# 2. Test single branch crawl (Kisumu - 5 items)
+docker compose exec scraper python -m scrapy crawl quickmart_spider -a town=Kisumu -s CLOSESPIDER_ITEMCOUNT=5
+
+# 3. Multi-branch batch crawl (2 items per branch)
+docker compose exec scraper python scraper/batch_quickmart.py --towns "Kisumu,Nairobi,Nakuru,Mombasa" --items 2
+```
+
 ---
 
 ## 4. Viewing Database Contents
