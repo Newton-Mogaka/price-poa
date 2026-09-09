@@ -37,23 +37,28 @@ except ImportError:  # pragma: no cover
 
 def _preprocess_image_variants(image: Image.Image):
     """Yield a sequence of PIL Image variants to try for barcode detection."""
-    # Original
-    yield image.convert("RGB")
-    # Grayscale
-    yield image.convert("L")
-    # Inverted RGB
-    rgb = image.convert("RGB")
-    inv_rgb_array = 255 - np.array(rgb)
-    yield Image.fromarray(inv_rgb_array.astype('uint8'))
-    # Inverted grayscale
-    gray = image.convert("L")
-    inv_gray_array = 255 - np.array(gray)
-    yield Image.fromarray(inv_gray_array.astype('uint8'))
-    # Upscaled 2x (RGB)
+    # Try multiple scales: 0.5x, 1.0x, 1.5x, 2.0x, 3.0x
+    scales = [0.5, 1.0, 1.5, 2.0, 3.0]
     w, h = image.size
-    yield image.resize((w * 2, h * 2), Image.BILINEAR).convert("RGB")
-    # Upscaled 2x grayscale
-    yield image.resize((w * 2, h * 2), Image.BILINEAR).convert("L")
+    for scale in scales:
+        new_w = int(w * scale)
+        new_h = int(h * scale)
+        # Skip if dimension becomes too small
+        if new_w < 10 or new_h < 10:
+            continue
+        scaled = image.resize((new_w, new_h), Image.BILINEAR)
+        # Original RGB
+        yield scaled.convert("RGB")
+        # Grayscale
+        yield scaled.convert("L")
+        # Inverted RGB
+        rgb = scaled.convert("RGB")
+        inv_rgb_array = 255 - np.array(rgb)
+        yield Image.fromarray(inv_rgb_array.astype('uint8'))
+        # Inverted grayscale
+        gray = scaled.convert("L")
+        inv_gray_array = 255 - np.array(gray)
+        yield Image.fromarray(inv_gray_array.astype('uint8'))
 
 
 def _decode_with_pyzbar(image_bytes: bytes) -> Optional[Dict[str, Optional[str]]]:

@@ -436,13 +436,14 @@ async def handle_callback_query(callback_query: Dict[str, Any]):
         # Handle scan_photo callback from inline keyboard
         if data == "scan_photo":
             # Acknowledge the button press so the loading spinner disappears
-            await answer_callback_query(
+            answered = answer_callback_query(
                 callback_query_id=callback_query["id"],
                 text="Please send a photo of the barcode/QR code."
             )
-            # Optionally send a follow-up message (the answer above already shows a toast,
-            # but we can also send a normal message if we want more space)
-            # send_telegram_text(chat_id, "Please send a photo of the barcode/QR code.")
+            if not answered:
+                logger.warning("Failed to answer callback query for scan_photo")
+            # Send a normal message to ensure the user sees the prompt
+            send_telegram_text(chat_id, "Please send a photo of the barcode/QR code.")
             return JSONResponse(status_code=200, content={"status": "accepted"})
 
         # Existing rating callback handling

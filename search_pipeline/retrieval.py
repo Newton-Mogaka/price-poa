@@ -35,8 +35,7 @@ class SearchPipeline:
     3. Vector Search (Top 50)
     4. RapidFuzz Re-ranking
     5. Business Rule Ranking
-     Ranking
-    6. Return Top 6. Return Top 20
+    6. Return Top 20
     """
 
     def __init__(self, db: AsyncIOMotorDatabase):
@@ -153,6 +152,21 @@ class SearchPipeline:
         """
         Apply RapidFuzz re-ranking to vector search results.
 
+        FIX (Bug 2): the previous implementation keyed a flat `product_map`
+        dict by the term string alone (e.g. "general", "naivas"). Whenever
+        two different products shared an identical category/brand/alias
+        string -- extremely common in this catalog, e.g. the "general"
+        category bucket -- the second product to be indexed silently
+        overwrote the first in `product_map`. A high fuzzy score on that
+        shared term would then get attributed to whichever product happened
+        to be inserted last, not the product that's actually relevant to the
+        query. That's how an unrelated cheap item could end up carrying a
+        real (but misattributed) fuzzy score.
+
+        Fix: score fuzzy match PER PRODUCT (max score across that product's
+        own terms) instead of pooling every product's terms into one shared
+        flat namespace keyed only by string value.
+
         Args:
             query_text: Normalized query text
             vector_results: Results from vector search
@@ -171,9 +185,10 @@ class SearchPipeline:
                 logger.debug("Using cached RapidFuzz results")
                 return self._rapidfuzz_cache[cache_key]
 
-            # Prepare search terms from vector results
-            search_terms = []
-            product_map = {}  # Maps search term to product info
+            # Build a per-product list of searchable terms, keyed by
+            # product_id. No two products share an entry here, even if
+            # their term strings are identical.
+            product_terms: Dict[str, Dict[str, Any]] = {}  # product_id -> {"terms": [...], "info": {...}}
 
             for result in vector_results:
                 payload = result.get("payload", {})
@@ -181,13 +196,11 @@ class SearchPipeline:
                 if not product_id:
                     continue
 
-                # Extract text for matching
                 product_name = payload.get("product_name", "")
                 brand = payload.get("brand", "")
                 category = payload.get("category", "")
                 aliases = payload.get("aliases", [])
 
-                # Add all searchable terms
                 terms_to_index = []
                 if product_name:
                     terms_to_index.append(product_name)
@@ -197,11 +210,14 @@ class SearchPipeline:
                     terms_to_index.append(category)
                 terms_to_index.extend(aliases)
 
-                for term in terms_to_index:
-                    if term and term.strip():
-                        term_lower = term.lower().strip()
-                        search_terms.append(term_lower)
-                        product_map[term_lower] = {
+                terms_lower = [t.lower().strip() for t in terms_to_index if t and t.strip()]
+                if not terms_lower:
+                    continue
+
+                if product_id not in product_terms:
+                    product_terms[product_id] = {
+                        "terms": [],
+                        "info": {
                             "product_id": product_id,
                             "product_name": product_name,
                             "brand": brand,
@@ -209,58 +225,67 @@ class SearchPipeline:
                             "size": payload.get("size"),
                             "unit": payload.get("unit")
                         }
+                    }
+                product_terms[product_id]["terms"].extend(terms_lower)
 
-            if not search_terms:
+            if not product_terms:
                 logger.warning("No search terms available for RapidFuzz matching")
                 return []
 
-            # Use RapidFuzz to find matches
+            # Build a single choices dict for process.extract, keyed by a
+            # composite "product_id::term" string so identical term strings
+            # from different products never collide. rapidfuzz.process.extract
+            # accepts a dict and returns the matched dict KEY alongside the
+            # score, which lets us recover the exact (product_id, term) pair
+            # unambiguously -- no shared lookup table involved.
+            choices: Dict[str, str] = {}
+            for product_id, data in product_terms.items():
+                for term in data["terms"]:
+                    choices[f"{product_id}::{term}"] = term
+
             matches = process.extract(
                 query_text.lower(),
-                search_terms,
+                choices,
                 scorer=self.rapidfuzz_config['scorer'],
                 limit=limit * self.rapidfuzz_config['limit_multiplier'],
                 score_cutoff=self.rapidfuzz_config['score_cutoff']
             )
 
+            # Take the BEST score per product_id (a product may have several
+            # terms match; keep its strongest one).
+            best_score_by_product: Dict[str, Tuple[float, str]] = {}
+            for match_term, score, composite_key in matches:
+                product_id, _, term = composite_key.partition("::")
+                if product_id not in best_score_by_product or score > best_score_by_product[product_id][0]:
+                    best_score_by_product[product_id] = (score, term)
+
             # Format results
             fuzzy_results = []
-            seen_products = set()
+            for product_id, (score, matched_term) in sorted(
+                best_score_by_product.items(), key=lambda kv: kv[1][0], reverse=True
+            )[:limit]:
+                product_doc = await self._fetch_product_document(product_id)
+                if not product_doc:
+                    continue
 
-            for match_term, score, _ in matches:
-                product_info = product_map.get(match_term)
-                if product_info:
-                    pid = product_info["product_id"]
-                    if pid not in seen_products:
-                        seen_products.add(pid)
-                        # Fetch full product document to get all details
-                        product_doc = await self._fetch_product_document(pid)
-                        if product_doc:
-                            # Convert score to 0-1 range
-                            normalized_score = score / 100.0
+                normalized_score = score / 100.0
 
-                            fuzzy_result = {
-                                "product_id": pid,
-                                "score": normalized_score,
-                                "confidence": normalized_score,
-                                "matched_term": match_term,
-                                "match_type": "rapidfuzz",
-                                "payload": {
-                                    "product_name": product_doc.get("name", ""),
-                                    "brand": product_doc.get("brand"),
-                                    "category": product_doc.get("category"),
-                                    "sizes_variants": product_doc.get("sizes_variants", []),
-                                    "swahili_aliases": product_doc.get("swahili_aliases", []),
-                                    "sheng_aliases": product_doc.get("sheng_aliases", [])
-                                }
-                            }
-                            fuzzy_results.append(fuzzy_result)
-
-            # Sort by score descending
-            fuzzy_results.sort(key=lambda x: x["score"], reverse=True)
-
-            # Limit results
-            fuzzy_results = fuzzy_results[:limit]
+                fuzzy_result = {
+                    "product_id": product_id,
+                    "score": normalized_score,
+                    "confidence": normalized_score,
+                    "matched_term": matched_term,
+                    "match_type": "rapidfuzz",
+                    "payload": {
+                        "product_name": product_doc.get("name", ""),
+                        "brand": product_doc.get("brand"),
+                        "category": product_doc.get("category"),
+                        "sizes_variants": product_doc.get("sizes_variants", []),
+                        "swahili_aliases": product_doc.get("swahili_aliases", []),
+                        "sheng_aliases": product_doc.get("sheng_aliases", [])
+                    }
+                }
+                fuzzy_results.append(fuzzy_result)
 
             # Cache results
             self._rapidfuzz_cache[cache_key] = fuzzy_results
