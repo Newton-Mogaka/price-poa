@@ -1,0 +1,650 @@
+[
+  {
+    "shop_id": 65,
+    "name": "Quickmart Banana Rd",
+    "slug": "/banana",
+    "location_tags": [
+      "Ruaka",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 39,
+    "name": "Quickmart Bandari",
+    "slug": "/5301",
+    "location_tags": [
+      "Mvita",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 53,
+    "name": "Quickmart Buruburu",
+    "slug": "/3201",
+    "location_tags": [
+      "Makadara",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 14,
+    "name": "Quickmart Chaka Rd",
+    "slug": "/1801",
+    "location_tags": [
+      "Kilimani",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 32,
+    "name": "Quickmart Chania",
+    "slug": "/4601",
+    "location_tags": [
+      "Thika",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 63,
+    "name": "Quickmart Circle Mall",
+    "slug": "/6801",
+    "location_tags": [
+      "Kilimani",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 49,
+    "name": "Quickmart Crossroads-Karen",
+    "slug": "/6101",
+    "location_tags": [
+      "Crossroads Karen",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 73,
+    "name": "Quickmart Diamond Biz",
+    "slug": "/7701",
+    "location_tags": [
+      "Syokimau",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 52,
+    "name": "Quickmart Donholm",
+    "slug": "/2201",
+    "location_tags": [
+      "Nairobi",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 59,
+    "name": "Quickmart Eastern Bypass 1",
+    "slug": "/1101",
+    "location_tags": [
+      "Ruiru",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 60,
+    "name": "Quickmart Eastern Bypass 2",
+    "slug": "/1901",
+    "location_tags": [
+      "Ruiru",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 30,
+    "name": "Quickmart Eldocenter",
+    "slug": "/4401",
+    "location_tags": [
+      "Eldoret",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 69,
+    "name": "Quickmart Elgon View",
+    "slug": "/7301",
+    "location_tags": [
+      "Eldoret",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 24,
+    "name": "Quickmart Embakasi",
+    "slug": "/3801",
+    "location_tags": [
+      "Embakasi",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 17,
+    "name": "Quickmart Fedha",
+    "slug": "/2501",
+    "location_tags": [
+      "Fedha",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 43,
+    "name": "Quickmart Highway-Mlolongo",
+    "slug": "/5701",
+    "location_tags": [
+      "Mlolongo",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 11,
+    "name": "Quickmart Jipange",
+    "slug": "/1701",
+    "location_tags": [
+      "Jipange",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 64,
+    "name": "Quickmart Joska",
+    "slug": "/6701",
+    "location_tags": [
+      "Joska",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 8,
+    "name": "Quickmart Kahawa Sukari",
+    "slug": "/601",
+    "location_tags": [
+      "Kahawa Sukari",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 15,
+    "name": "Quickmart Kahawa West",
+    "slug": "/2301",
+    "location_tags": [
+      "Githurai",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 31,
+    "name": "Quickmart Kakamega",
+    "slug": "/4201",
+    "location_tags": [
+      "Kakamega",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 18,
+    "name": "Quickmart Kericho",
+    "slug": "/3301",
+    "location_tags": [
+      "Kericho",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 3,
+    "name": "Quickmart Kiambu",
+    "slug": "/kiambu",
+    "location_tags": [
+      "Thindigua",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 13,
+    "name": "Quickmart Kikuyu Rd",
+    "slug": "/1001",
+    "location_tags": [
+      "Kikuyu",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 4,
+    "name": "Quickmart Kileleshwa 24 HRS",
+    "slug": "/kileleshwa",
+    "location_tags": [
+      "Kileleshwa",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 2,
+    "name": "Quickmart Kilimani",
+    "slug": "/3601",
+    "location_tags": [
+      "Kilimani",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 26,
+    "name": "Quickmart Kiserian",
+    "slug": "/3901",
+    "location_tags": [
+      "Kiserian",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 37,
+    "name": "Quickmart Kisii",
+    "slug": "/5001",
+    "location_tags": [
+      "Kisii",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 36,
+    "name": "Quickmart Kitale",
+    "slug": "/4901",
+    "location_tags": [
+      "Kitale",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 40,
+    "name": "Quickmart Kitengela",
+    "slug": "/5401",
+    "location_tags": [
+      "Kitengela",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 66,
+    "name": "Quickmart Kitengela CBD",
+    "slug": "/7201",
+    "location_tags": [
+      "Kitengela",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 45,
+    "name": "Quickmart Kitui",
+    "slug": "/5801",
+    "location_tags": [
+      "Kitui",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 23,
+    "name": "Quickmart Kondele",
+    "slug": "/2801",
+    "location_tags": [
+      "Kisumu",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 10,
+    "name": "Quickmart Lavington",
+    "slug": "/1401",
+    "location_tags": [
+      "Lavington",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 68,
+    "name": "Quickmart Likoni Ferry",
+    "slug": "/7101",
+    "location_tags": [
+      "Mvita",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 41,
+    "name": "Quickmart Machakos Express",
+    "slug": "/5501",
+    "location_tags": [
+      "Machakos",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 42,
+    "name": "Quickmart Machakos Pioneer",
+    "slug": "/5601",
+    "location_tags": [
+      "Machakos",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 74,
+    "name": "Quickmart Makongeni",
+    "slug": "/7801",
+    "location_tags": [
+      "Thika",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 48,
+    "name": "Quickmart Mayfair",
+    "slug": "/3001",
+    "location_tags": [
+      "Nyalenda",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 12,
+    "name": "Quickmart Mfangano",
+    "slug": "/3401",
+    "location_tags": [
+      "Central Business District (CBD)",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 46,
+    "name": "Quickmart Milele-Ngong",
+    "slug": "/6001",
+    "location_tags": [
+      "Ngong",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 28,
+    "name": "Quickmart Mombasa Road",
+    "slug": "/4101",
+    "location_tags": [
+      "Embakasi",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 29,
+    "name": "Quickmart Mtwapa Express",
+    "slug": "/4501",
+    "location_tags": [
+      "Mtwapa",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 35,
+    "name": "Quickmart Mtwapa Mall",
+    "slug": "/4801",
+    "location_tags": [
+      "Mtwapa",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 72,
+    "name": "Quickmart Nakuru 58",
+    "slug": "/7501",
+    "location_tags": [
+      "Nakuru",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 71,
+    "name": "Quickmart Nakuru Kenyatta Avenue",
+    "slug": "/7601",
+    "location_tags": [
+      "Nakuru",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 67,
+    "name": "Quickmart Nakuru Statehouse",
+    "slug": "/nakurustatehouse",
+    "location_tags": [
+      "Nakuru",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 27,
+    "name": "Quickmart Nanyuki",
+    "slug": "/4001",
+    "location_tags": [
+      "Nanyuki",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 56,
+    "name": "Quickmart Narok Moran",
+    "slug": "/6601",
+    "location_tags": [
+      "Narok",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 70,
+    "name": "Quickmart Ngong Road-Adams",
+    "slug": "/7401",
+    "location_tags": [
+      "Kilimani",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 21,
+    "name": "Quickmart Nyalenda",
+    "slug": "/2901",
+    "location_tags": [
+      "Nyalenda",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 51,
+    "name": "Quickmart Nyali",
+    "slug": "/6401",
+    "location_tags": [
+      "Mombasa",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 25,
+    "name": "Quickmart Oginga Odinga",
+    "slug": "/3701",
+    "location_tags": [
+      "Nyalenda",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 34,
+    "name": "Quickmart Otc",
+    "slug": "/4701",
+    "location_tags": [
+      "Central Business District (CBD)",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 20,
+    "name": "Quickmart Outering",
+    "slug": "/2401",
+    "location_tags": [
+      "Pipeline",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 54,
+    "name": "Quickmart Outering 2 (CALTEX)",
+    "slug": "/6501",
+    "location_tags": [
+      "Nairobi",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 58,
+    "name": "Quickmart Pioneer",
+    "slug": "/4301",
+    "location_tags": [
+      "Central Business District (CBD)",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 22,
+    "name": "Quickmart Pipeline",
+    "slug": "/2101",
+    "location_tags": [
+      "Embakasi",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 47,
+    "name": "Quickmart Rongai Express",
+    "slug": "/2601",
+    "location_tags": [
+      "Ongata Rongai",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 57,
+    "name": "Quickmart Rongai Main",
+    "slug": "/1601",
+    "location_tags": [
+      "Ongata Rongai",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 9,
+    "name": "Quickmart Roysambu",
+    "slug": "/3101",
+    "location_tags": [
+      "Roysambu",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 7,
+    "name": "Quickmart Ruai",
+    "slug": "/501",
+    "location_tags": [
+      "Ruai",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 1,
+    "name": "Quickmart Ruaka",
+    "slug": "/ruaka",
+    "location_tags": [
+      "Ruaka",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 55,
+    "name": "Quickmart Ruiru",
+    "slug": "/1201",
+    "location_tags": [
+      "Ruiru",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 5,
+    "name": "Quickmart Shabaab",
+    "slug": "/801",
+    "location_tags": [
+      "Nakuru",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 44,
+    "name": "Quickmart T-Mall",
+    "slug": "/5901",
+    "location_tags": [
+      "TMALL",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 50,
+    "name": "Quickmart Thome",
+    "slug": "/6201",
+    "location_tags": [
+      "Thome",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 16,
+    "name": "Quickmart Tom Mboya",
+    "slug": "/3501",
+    "location_tags": [
+      "Central Business District (CBD)",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 33,
+    "name": "Quickmart Utawala Express Kwa Chief",
+    "slug": "/2001",
+    "location_tags": [
+      "Utawala",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 19,
+    "name": "Quickmart Utawala Main Benedicta",
+    "slug": "/2701",
+    "location_tags": [
+      "Utawala",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 6,
+    "name": "Quickmart Waiyaki Way",
+    "slug": "/1501",
+    "location_tags": [
+      "Westlands",
+      "Kenya"
+    ]
+  },
+  {
+    "shop_id": 38,
+    "name": "Quickmart Westlands 24 HRS",
+    "slug": "/5201",
+    "location_tags": [
+      "Westlands",
+      "Kenya"
+    ]
+  }
+]
