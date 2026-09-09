@@ -65,7 +65,11 @@ def run_scheduled_mode():
         logger.info("Shutdown complete.")
 
 
-def run_once_mode(spider_name: Optional[str] = None):
+def run_once_mode(
+    spider_name: Optional[str] = None,
+    town: Optional[str] = None,
+    branch: Optional[str] = None
+):
     """Run spiders once immediately.
 
     If spider_name is given, only that spider is scheduled. Otherwise every
@@ -80,27 +84,40 @@ def run_once_mode(spider_name: Optional[str] = None):
 
     process = CrawlerProcess(settings)
 
+    crawl_kwargs = {}
+    if town:
+        crawl_kwargs['town'] = town
+    if branch:
+        crawl_kwargs['branch'] = branch
+
     if spider_name:
         spiders_to_run = [spider_name]
-        logger.info(f"Running single spider: {spider_name}")
+        logger.info(f"Running single spider: {spider_name} with params: {crawl_kwargs}")
     else:
         spiders_to_run = SPIDER_NAMES
         logger.info("Running all spiders")
 
     for name in spiders_to_run:
         logger.info(f"Scheduling spider: {name}")
-        process.crawl(name)
+        if crawl_kwargs and name == 'quickmart_spider':
+            process.crawl(name, **crawl_kwargs)
+        else:
+            process.crawl(name)
 
     logger.info("Starting crawl process...")
     process.start()  # blocks until all crawling is finished
     logger.info("All spiders completed.")
 
 
-def run_test_mode(spider_name: Optional[str] = None):
+def run_test_mode(
+    spider_name: Optional[str] = None,
+    town: Optional[str] = None,
+    branch: Optional[str] = None
+):
     """Run a single spider for testing. Defaults to naivas_spider if none given."""
     target = spider_name or 'naivas_spider'
     logger.info(f"Running test spider: {target}")
-    run_once_mode(target)
+    run_once_mode(target, town=town, branch=branch)
 
 
 def main():
@@ -120,6 +137,16 @@ def main():
             'Omit to run all spiders. Ignored in scheduled mode.'
         )
     )
+    parser.add_argument(
+        '--town',
+        default=None,
+        help='Specify town/city for localized spiders (e.g. Kisumu, Nairobi, Nakuru, Mombasa)'
+    )
+    parser.add_argument(
+        '--branch',
+        default=None,
+        help='Specify specific branch name/keyword for localized spiders (e.g. Kondele, Pioneer, Donholm)'
+    )
     args = parser.parse_args()
 
     if args.mode == 'scheduled':
@@ -127,9 +154,9 @@ def main():
             logger.warning("--spider is ignored in scheduled mode; all schedules run as configured.")
         run_scheduled_mode()
     elif args.mode == 'once':
-        run_once_mode(args.spider)
+        run_once_mode(args.spider, town=args.town, branch=args.branch)
     elif args.mode == 'test':
-        run_test_mode(args.spider)
+        run_test_mode(args.spider, town=args.town, branch=args.branch)
     else:
         logger.error(f"Unknown mode: {args.mode}")
         sys.exit(1)
