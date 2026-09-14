@@ -1524,9 +1524,10 @@ async def process_telegram_message(chat_id: int, text: str, background_tasks: Op
     else:
         # Single product query - return multiple options for comparison
         db = await get_database()
-        matches = await find_product_matches(db, text, limit=5)
-
-        if not matches:
+        search_response = await search_products(db,text,limit=5)
+        matches = search_response["results"]
+        no_confidence_match = search_response["no_confidence_match"]
+        if no_confidence_match or not matches:
             return {
                 "type": "not_found",
                 "data": {"query_text": text},
