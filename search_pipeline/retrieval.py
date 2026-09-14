@@ -93,7 +93,8 @@ class SearchPipeline:
             vector_results = await self.vector_service.search_similar_products(
                 query_text=normalized_query,
                 limit=vector_limit,
-                score_threshold=0.1  # Low threshold to get more candidates
+                # score_threshold=0.1  # Low threshold to get more candidates // this is letting in too much junk in the search results, i need to increase the threshold
+                score_threshold=0.5     # Increased threshold to filter out low-quality matches, but may reduce recall // optimum to be throughly tested and tuned for best results
             )
 
             # Step 4: RapidFuzz Re-ranking (on vector results only)
@@ -113,6 +114,14 @@ class SearchPipeline:
             )
 
             # Step 6: Return Top 20
+            MIN_FINAL_SCORE = 0.2
+
+            confident_results = [
+                r for r in ranked_results if r.scores.final_score >= MIN_FINAL_SCORE
+            ]
+
+            no_confident_match = len(confident_results) == 0
+
             final_results = ranked_results[:limit]
 
             # Format results for output
@@ -136,8 +145,11 @@ class SearchPipeline:
             elapsed_time = time.time() - start_time
             logger.info(f"Search pipeline completed in {elapsed_time:.3f}s, returned {len(formatted_results)} results")
 
-            return formatted_results
-
+            return {
+                "results": formatted_results,
+                "no_confident_match": no_confident_match
+            }
+        
         except Exception as e:
             logger.error(f"Error in search pipeline: {e}")
             # Return empty results on error
