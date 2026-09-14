@@ -1526,8 +1526,8 @@ async def process_telegram_message(chat_id: int, text: str, background_tasks: Op
         db = await get_database()
         search_response = await search_products(db,text,limit=5)
         matches = search_response["results"]
-        no_confidence_match = search_response["no_confidence_match"]
-        if no_confidence_match or not matches:
+        no_confident_match = search_response["no_confident_match"]
+        if no_confident_match or not matches:
             return {
                 "type": "not_found",
                 "data": {"query_text": text},
