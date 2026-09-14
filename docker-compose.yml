@@ -5,7 +5,13 @@ services:
     container_name: pricepoa_mongo
     # Single-node replica set: multi-document transactions AND Change Streams
     # (used by the embedding outbox) both require a replica set.
-    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--keyFile", "/etc/mongo-keyfile"]
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        cp /etc/mongo-keyfile /tmp/mongo-keyfile
+        chmod 400 /tmp/mongo-keyfile
+        chown 999:999 /tmp/mongo-keyfile
+        exec /usr/local/bin/docker-entrypoint.sh mongod --replSet rs0 --bind_ip_all --keyFile /tmp/mongo-keyfile
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
@@ -15,7 +21,7 @@ services:
     volumes:
       - mongo_data:/data/db
       - mongo_config:/data/configdb
-      - ./mongo-keyfile:/etc/mongo-keyfile
+      - ./mongo-keyfile:/etc/mongo-keyfile:ro
     networks:
       - pricepoa_network
     healthcheck:

@@ -18,7 +18,8 @@ RUN playwright install --with-deps
 RUN python -m invisible_playwright fetch
 
 # Set environment variables for scraping
-ENV SCRAPER_LOG_LEVEL=info
+ENV PYTHONPATH=/app
+ENV SCRAPER_LOG_LEVEL=INFO
 ENV SCRAPER_CONCURRENT_REQUESTS=16
 ENV SCRAPER_DOWNLOAD_DELAY=1
 ENV ENABLE_SCRAPER=true

@@ -90,7 +90,7 @@ HTTPCACHE_IGNORE_HTTP_CODES = []
 HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
 
 # Logging configuration
-LOG_LEVEL = os.getenv('SCRAPER_LOG_LEVEL', 'INFO')
+LOG_LEVEL = os.getenv('SCRAPER_LOG_LEVEL', 'INFO').upper()
 LOG_FORMAT = '%(asctime)s [%(name)s] %(levelname)s: %(message)s'
 LOG_DATEFORMAT = '%Y-%m-%d %H:%M:%S'
 

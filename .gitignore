@@ -24,3 +24,6 @@ meta
 mongo-keyfile
 technical_breakdown.md
 .nginx.confnginx/nginx.conf
+docker-compose.yml
+docker-compose.*.yml
+
