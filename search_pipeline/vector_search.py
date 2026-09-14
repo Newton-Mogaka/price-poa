@@ -145,7 +145,8 @@ class EnhancedVectorSearchService:
 
         try:
             # Encode the query text to a vector
-            vector = self.model.encode([query_text])[0].tolist()
+            #vector = self.model.encode([query_text])[0].tolist()
+            vector = self.model.encode([f"Represent this sentence for searching relevant passages: {query_text}"])[0].tolist()
 
             # Search in Qdrant
             search_result = self.client.query_points(
