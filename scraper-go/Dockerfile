@@ -5,11 +5,12 @@ WORKDIR /app
 
 # Copy go.mod and go.sum
 COPY go.mod ./
+COPY go.sum ./
 # Download dependencies
 RUN go mod download
 
 # Copy the source code
-COPY . .
+COPY . . 
 
 # Build the binary
 RUN go build -o /scraper-go .
