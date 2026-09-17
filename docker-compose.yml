@@ -202,8 +202,7 @@ services:
       mongo-init:
         condition: service_completed_successfully
     restart: unless-stopped
-    profiles:
-      - go-scraper
+    # Removed profile to start by default
 
   qdrant:
     image: qdrant/qdrant:latest
