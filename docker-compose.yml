@@ -45,7 +45,7 @@ services:
     volumes:
       - ./mongo-init/init-replica.js:/init-replica.js:ro
     entrypoint: ["/bin/bash", "-c"]
-    command: 
+    command:
       - |
         set -e;
         echo "Waiting for mongod...";
@@ -53,6 +53,7 @@ services:
         mongosh --host mongo --username "$${MONGO_INITDB_ROOT_USERNAME}" --password "$${MONGO_INITDB_ROOT_PASSWORD}" --authenticationDatabase admin --quiet /init-replica.js;
     networks:
       - pricepoa_network
+
   # MONGO-EXPRESS (Dev Admin UI)
   mongo-express:
     image: mongo-express:latest
@@ -182,6 +183,28 @@ services:
       - ./database:/app/database
       - /app/__pycache__
       - hf_cache:/root/.cache/huggingface
+
+  # SCRAPER-GO (Experimental Go-based scraper)
+  scraper-go:
+    build:
+      context: ./scraper-go
+      dockerfile: Dockerfile
+    container_name: pricepoa_scraper_go
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT}
+      MONGODB_URI: ${MONGO_URI}
+      MONGODB_DB: ${MONGODB_DB}
+      # Add other env vars as needed, similar to the scraper service
+      SCRAPER_LOG_LEVEL: ${SCRAPER_LOG_LEVEL}
+    networks:
+      - pricepoa_network
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    profiles:
+      - go-scraper
+
   qdrant:
     image: qdrant/qdrant:latest
     container_name: pricepoa_qdrant
@@ -192,7 +215,7 @@ services:
       - qdrant_storage:/qdrant/storage
     networks:
       - pricepoa_network
-    
+
   redis:
     image: redis:7-alpine
     container_name: pricepoa_redis
@@ -202,7 +225,7 @@ services:
       - redis_data:/data
     networks:
       - pricepoa_network
-    
+
   nginx:
     image: nginx:alpine
     ports:
@@ -217,7 +240,7 @@ services:
     networks:
       - pricepoa_network
     restart: unless-stopped
-  
+
   certbot:
     image: certbot/certbot
     volumes:
@@ -239,6 +262,5 @@ volumes:
     driver: local
   qdrant_storage:
     driver: local
-  hf_cache:              
+  hf_cache:
     driver: local
-  
