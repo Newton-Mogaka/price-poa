@@ -194,15 +194,18 @@ services:
       ENVIRONMENT: ${ENVIRONMENT}
       MONGODB_URI: ${MONGO_URI}
       MONGODB_DB: ${MONGODB_DB}
-      # Add other env vars as needed, similar to the scraper service
       SCRAPER_LOG_LEVEL: ${SCRAPER_LOG_LEVEL}
+      SCRAPER_CONCURRENT_REQUESTS: ${SCRAPER_CONCURRENT_REQUESTS}
+      SCRAPER_DOWNLOAD_DELAY: ${SCRAPER_DOWNLOAD_DELAY}
+      ENABLE_SCRAPER: ${ENABLE_SCRAPER}
     networks:
       - pricepoa_network
     depends_on:
       mongo-init:
         condition: service_completed_successfully
     restart: unless-stopped
-    # Removed profile to start by default
+    profiles:
+      - go-scraper
 
   qdrant:
     image: qdrant/qdrant:latest

@@ -252,11 +252,6 @@ sudo docker exec -it pricepoa_intelligence python -m outbox.backfill --force
 # Inspect outbox state in mongosh
 sudo docker compose exec mongo mongosh -u pricepoa_dev -p pricepoa_dev_password --authenticationDatabase admin pricepoa --eval 'db.embeddings_outbox.aggregate([{$match: {processed: false}}])'
 ```
-
----
-
-## 6c. Search Pipeline (Top-Level Module)
-
 The search pipeline is now located at the top-level of the project (in the `search_pipeline/` directory).
 It has been refactored into a modular, layered architecture. Each stage of the pipeline is
 handled by a dedicated component, making the system more maintainable and extensible. The pipeline consists
