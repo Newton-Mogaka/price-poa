@@ -2,16 +2,19 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/chromedp/chromedp"
 	"github.com/robfig/cron/v3"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -21,7 +24,6 @@ var (
 	mongoURI     = getEnv("MONGO_URI", "mongodb://pricepoa_dev:pricepoa_dev_password@mongo:27017/pricepoa?authSource=admin")
 	mongoDBName  = getEnv("MONGODB_DB", "pricepoa")
 	logLevel     = getEnv("SCRAPER_LOG_LEVEL", "info")
-	// Add other env vars as needed
 )
 
 func getEnv(key, fallback string) string {
@@ -138,45 +140,428 @@ func runTheBarSpider(ctx context.Context, pricesColl *mongo.Collection, town str
 	chromeCtx, cancel := chromedp.NewContext(ctx)
 	defer cancel()
 
-	// Set up a timeout for chromedp tasks
-	taskCtx, cancel := context.WithTimeout(chromeCtx, 30*time.Second)
+	var products []bson.M
+
+	// Navigate to collections page and extract product links
+	var collectionsHTML string
+	err := chromedp.Run(chromeCtx,
+		chromedp.Navigate(`https://ke.thebar.com/collections/party`),
+		chromedp.OuterHTML(`html`, &collectionsHTML),
+	)
+	if err != nil {
+		log.Printf("Failed to fetch The Bar collections page: %v", err)
+		return
+	}
+
+	// Parse product links from collections page
+	productLinks := extractProductLinks(collectionsHTML)
+	log.Printf("Found %d product links on The Bar collections page", len(productLinks))
+
+	// Limit for testing if needed (remove in production)
+	// if len(productLinks) > 10 {
+	// 	productLinks = productLinks[:10]
+	// }
+
+	// Process each product link
+	for _, link := range productLinks {
+		product := extractProductDetails(chromeCtx, link)
+		if product != nil {
+			products = append(products, *product)
+		}
+		// Be respectful - small delay between requests
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	if len(products) == 0 {
+		log.Println("No products extracted from The Bar")
+		return
+	}
+
+	// Insert all products
+	if len(products) > 0 {
+		var docs []interface{}
+		for _, p := range products {
+			docs = append(docs, p)
+		}
+
+		insertManyOpts := options.InsertMany().SetOrdered(false)
+		result, err := pricesColl.InsertMany(ctx, docs, insertManyOpts)
+		if err != nil {
+			log.Printf("Failed to insert products: %v", err)
+			return
+		}
+		log.Printf("Inserted %d products from The Bar", len(result.InsertedIDs))
+	}
+}
+
+// extractProductLinks parses the collections page HTML and returns product URLs
+func extractProductLinks(html string) []string {
+	var links []string
+
+	// Use chromedp to extract links from HTML string
+	// We'll create a temporary context just for this extraction
+	ctx, cancel := chromedp.NewContext(context.Background())
 	defer cancel()
 
-	// Navigate to the start URL
+	var linkStrings []string
+	err := chromedp.Run(ctx,
+		chromedp.HTML(`<html><body>`+html+`</body></html>`, &linkStrings),
+		chromedp.Nodes(`a[href*="/products/"]`, &linkStrings, chromedp.ByQueryAll),
+	)
+	if err != nil {
+		log.Printf("Error extracting product links: %v", err)
+		// Fallback: simple string parsing
+		return extractProductLinksFallback(html)
+	}
+
+	// Actually, let's do it properly with chromedp
+	var nodes []*chromedp.Node
+	err = chromedp.Run(ctx,
+		chromedp.HTML(`<html><body>`+html+`</body></html>`, &nodes),
+		chromedp.Nodes(`a[href*="/products/"]`, &nodes, chromedp.ByQueryAll),
+	)
+	if err != nil {
+		log.Printf("Error extracting product links with chromedp: %v", err)
+		return extractProductLinksFallback(html)
+	}
+
+	for _, node := range nodes {
+		for _, attr := range node.Attributes {
+			if attr.Key == "href" {
+				link := attr.Val
+				if strings.HasPrefix(link, "/") {
+					link = "https://ke.thebar.com" + link
+				}
+				if strings.Contains(link, "/products/") {
+					links = append(links, link)
+				}
+				break
+			}
+		}
+	}
+
+	// Deduplicate
+	seen := make(map[string]bool)
+	var uniqueLinks []string
+	for _, link := range links {
+		if !seen[link] {
+			seen[link] = true
+			uniqueLinks = append(uniqueLinks, link)
+		}
+	}
+	return uniqueLinks
+}
+
+// Fallback link extraction using simple string parsing
+func extractProductLinksFallback(html string) []string {
+	var links []string
+	// Simple regex-like extraction for href containing /products/
+	start := 0
+	for {
+		startIdx := strings.Index(html[start:], `href="`)
+		if startIdx == -1 {
+			break
+		}
+		start += startIdx + 6 // skip 'href="'
+		endIdx := strings.Index(html[start:], `"`)
+		if endIdx == -1 {
+			break
+		}
+		link := html[start : start+endIdx]
+		if strings.Contains(link, "/products/") {
+			if strings.HasPrefix(link, "/") {
+				link = "https://ke.thebar.com" + link
+			}
+			links = append(links, link)
+		}
+		start += endIdx
+	}
+	return links
+}
+
+// extractProductDetails navigates to a product URL and extracts product information
+func extractProductDetails(chromeCtx *chromedp.Context, productURL string) *bson.M {
+	// Create a task context with timeout
+	taskCtx, cancel := chromedp.NewContext(chromeCtx)
+	defer cancel()
+	taskCtx, cancel = context.WithTimeout(taskCtx, 20*time.Second)
+	defer cancel()
+
 	var html string
 	err := chromedp.Run(taskCtx,
-		chromedp.Navigate(`https://ke.thebar.com/collections/party`),
+		chromedp.Navigate(productURL),
 		chromedp.OuterHTML(`html`, &html),
 	)
 	if err != nil {
-		log.Printf("Failed to fetch The Bar page: %v", err)
-		return
+		log.Printf("Failed to fetch product page %s: %v", productURL, err)
+		return nil
 	}
 
-	// TODO: Parse HTML to extract product links and then product details
-	// For now, we'll just log that we got the page
-	log.Printf("Fetched The Bar page, length: %d", len(html))
+	// Try to extract from JSON-LD first
+	product := extractFromJSONLD(html, productURL)
+	if product != nil {
+		return product
+	}
 
-	// TODO: Implement parsing logic similar to the Python spider
-	// For demonstration, we'll insert a dummy document
-	dummyPrice := map[string]interface{}{
-		"product_name":   "Dummy Product from Go",
+	// Fallback to CSS selectors
+	return extractFromCSS(html, productURL)
+}
+
+// extractFromJSONLD tries to parse product data from JSON-LD scripts
+func extractFromJSONLD(html string, productURL string) *bson.M {
+	// Find all application/ld+json scripts
+	var scripts []string
+	ctx, cancel := chromedp.NewContext(context.Background())
+	defer cancel()
+
+	err := chromedp.Run(ctx,
+		chromedp.HTML(`<html><body>`+html+`</body></html>`, &scripts),
+		chromedp.Nodes(`script[type="application/ld+json"]`, &scripts, chromedp.ByQueryAll),
+	)
+	if err != nil {
+		// Fallback to simple extraction
+		return extractFromJSONLDFallback(html, productURL)
+	}
+
+	for _, script := range scripts {
+		var data interface{}
+		if err := json.Unmarshal([]byte(script), &data); err != nil {
+			continue
+		}
+
+		// Handle both single object and array
+		var items []interface{}
+		switch v := data.(type) {
+		case []interface{}:
+			items = v
+		case map[string]interface{}:
+			items = []interface{}{v}
+		default:
+			continue
+		}
+
+		for _, item := range items {
+			itemMap, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if itemMap["@type"] == "Product" || (itemMap["@type"] != nil && strings.Contains(fmt.Sprint(itemMap["@type"]), "Product")) {
+				// Extract product details
+				name := extractString(itemMap, "name")
+				if name == "" {
+					continue
+				}
+
+				price := ""
+				if offers, ok := itemMap["offers"].(map[string]interface{}); ok {
+					if priceVal, ok := offers["price"]; ok {
+						switch v := priceVal.(type) {
+						case string:
+							price = v
+						case float64:
+							price = fmt.Sprintf("%.2f", v)
+						}
+					}
+				}
+				if price == "" {
+					continue
+				}
+
+				// Build product document
+				return &bson.M{
+					"product_name":   strings.TrimSpace(name),
+					"store_chain":    "The Bar",
+					"store_branch":   "Online Store",
+					"price_kes":      price,
+					"currency":       "KES",
+					"source":         "thebar_online",
+					"category":       "Party",
+					"response_url":   productURL,
+					"verified_at":    time.Now(),
+					"created_at":     time.Now(),
+					"scraper":        "go",
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// Fallback JSON-LD extraction
+func extractFromJSONLDFallback(html string, productURL string) *bson.M {
+	// Simple extraction of JSON-LD content
+	start := 0
+	for {
+		startIdx := strings.Index(html[start:], `<script type="application/ld+json">`)
+		if startIdx == -1 {
+			break
+		}
+		start += startIdx + len(`<script type="application/ld+json">`)
+		endIdx := strings.Index(html[start:], `</script>`)
+		if endIdx == -1 {
+			break
+		}
+		script := html[start : start+endIdx]
+		start += endIdx
+
+		var data interface{}
+		if err := json.Unmarshal([]byte(script), &data); err != nil {
+			continue
+		}
+
+		// Process as above...
+		var items []interface{}
+		switch v := data.(type) {
+		case []interface{}:
+			items = v
+		case map[string]interface{}:
+			items = []interface{}{v}
+		default:
+			continue
+		}
+
+		for _, item := range items {
+			itemMap, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if itemMap["@type"] == "Product" || (itemMap["@type"] != nil && strings.Contains(fmt.Sprint(itemMap["@type"]), "Product")) {
+				name := extractString(itemMap, "name")
+				if name == "" {
+					continue
+				}
+
+				price := ""
+				if offers, ok := itemMap["offers"].(map[string]interface{}); ok {
+					if priceVal, ok := offers["price"]; ok {
+						switch v := priceVal.(type) {
+						case string:
+							price = v
+						case float64:
+							price = fmt.Sprintf("%.2f", v)
+						}
+					}
+				}
+				if price == "" {
+					continue
+				}
+
+				return &bson.M{
+					"product_name":   strings.TrimSpace(name),
+					"store_chain":    "The Bar",
+					"store_branch":   "Online Store",
+					"price_kes":      price,
+					"currency":       "KES",
+					"source":         "thebar_online",
+					"category":       "Party",
+					"response_url":   productURL,
+					"verified_at":    time.Now(),
+					"created_at":     time.Now(),
+					"scraper":        "go",
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// extractFromCSS extracts product details using CSS selectors (fallback)
+func extractFromCSS(html string, productURL string) *bson.M {
+	ctx, cancel := chromedp.NewContext(context.Background())
+	defer cancel()
+
+	var productName string
+	var priceText string
+	var category string
+
+	// Try to extract product name
+	nameSelectors := []string{
+		`h1`,
+		`.product-title`,
+		`.product-name`,
+		`[data-testid="product-title"]`,
+	}
+	for _, selector := range nameSelectors {
+		err := chromedp.Run(ctx,
+			chromedp.HTML(`<html><body>`+html+`</body></html>`, &productName),
+			chromedp.Text(selector, &productName, chromedp.ByQuery),
+		)
+		if err == nil && strings.TrimSpace(productName) != "" {
+			break
+		}
+	}
+
+	// Try to extract price
+	priceSelectors := []string{
+		`.price-current`,
+		`.sales-price`,
+		`[data-testid="price"]`,
+		`.price`,
+		`[class*="price"]`,
+	}
+	for _, selector := range priceSelectors {
+		err := chromedp.Run(ctx,
+			chromedp.HTML(`<html><body>`+html+`</body></html>`, &priceText),
+			chromedp.Text(selector, &priceText, chromedp.ByQuery),
+		)
+		if err == nil && strings.TrimSpace(priceText) != "" {
+			break
+		}
+	}
+
+	// Category is known to be Party from the collection URL
+	category = "Party"
+
+	if strings.TrimSpace(productName) == "" || strings.TrimSpace(priceText) == "" {
+		log.Printf("Could not extract product name or price from %s", productURL)
+		return nil
+	}
+
+	// Clean price text (remove currency symbols, etc.)
+	price := cleanPrice(priceText)
+
+	return &bson.M{
+		"product_name":   strings.TrimSpace(productName),
 		"store_chain":    "The Bar",
 		"store_branch":   "Online Store",
-		"price_kes":      "100",
+		"price_kes":      price,
 		"currency":       "KES",
 		"source":         "thebar_online",
-		"category":       "Party",
+		"is_promotional": false, // TODO: detect promotions
+		"category":       category,
+		"response_url":   productURL,
 		"verified_at":    time.Now(),
 		"created_at":     time.Now(),
-		"response_url":   "https://ke.thebar.com/collections/party",
 		"scraper":        "go",
 	}
+}
 
-	insertResult, err := pricesColl.InsertOne(ctx, dummyPrice)
-	if err != nil {
-		log.Printf("Failed to insert dummy price: %v", err)
-		return
+// extractString helper for JSON-LD parsing
+func extractString(data map[string]interface{}, key string) string {
+	if val, ok := data[key]; ok {
+		switch v := val.(type) {
+		case string:
+			return v
+		case float64:
+			return fmt.Sprintf("%.2f", v)
+		}
 	}
-	log.Printf("Inserted dummy price with ID: %v", insertResult.InsertedID)
+	return ""
+}
+
+// cleanPrice removes currency symbols and extra text from price string
+func cleanPrice(priceText string) string {
+	// Remove common currency symbols and text
+	price := strings.TrimSpace(priceText)
+	price = strings.ReplaceAll(price, "KES", "")
+	price = strings.ReplaceAll(price, "KSh", "")
+	price = strings.ReplaceAll(price, "£", "")
+	price = strings.ReplaceAll(price, "$", "")
+	price = strings.ReplaceAll(price, ",", "")
+	price = strings.TrimSpace(price)
+
+	// Extract first number-like pattern
+	// Simple approach: find first sequence of digits and optional decimal
+	// In production, you might want to use regex
+	return price
 }
