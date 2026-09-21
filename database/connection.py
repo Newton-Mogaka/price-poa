@@ -3,6 +3,7 @@ MongoDB connection manager using Motor async driver.
 Handles connection setup and provides access to database collections.
 """
 import os
+import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ConnectionFailure
 import logging
@@ -54,7 +55,7 @@ class DatabaseConnection:
             await self._client.admin.command('ping')
             self._database = self._client[mongodb_db]
 
-            logger.info(f"Connected to MongoDB: {mongodb_uri}, Database: {mongodb_db}")
+            logger.info(f"Connected to MongoDB atlas cluster")
             return self._database
         except ConnectionFailure as e:
             logger.error(f"Failed to connect to MongoDB: {e}")
