@@ -64,44 +64,37 @@ class QueryParser:
     def _compile_patterns(self):
         """Compile regex patterns for attribute extraction."""
 
-        # Brand patterns - look for known brand names at start or common positions
-        # We'll load common brand names from config or use heuristics
-        self.brand_indicators = [
-            r'\b(aqua|brooks|brookside|daima|kel|kelbrooke|kelbrook)\b',
-            r'\b(jogoo|sukari|mumias|mumias sugar|mumias sugar company)\b',
-            r'\b(bidco|pwani|mama|mama ya|mama ya moto)\b',
-            r'\b(unilever|kimbo|frytol|kotex|molto|molto)\b',
-            r'\b(khetia|kungu|kungu fats|kungu oil)\b',
-            r'\b(malizia|dolciaria|centro|afia|afya|afya plus)\b',
-            r'\b(haco|indomie|chicken|chicken today|chicken today ltd)\b',
-            r'\b(bidco|oilseeds|oil seeds|golden fry|golden fry oil)\b',
-        ]
+        # use the brand indicators from the config
+        query_parser_config = self.config.get('query_parser', {})
 
-        # Combined brand pattern
-        brand_pattern = '|'.join(self.brand_indicators)
-        self.brand_pattern = re.compile(brand_pattern, re.IGNORECASE)
+        brand_terms = query_parser_config.get('brand_terms', [])
+        if brand_terms:
+            # Escape each term, sort longest-first so multi-word brands are matched before shorter ones
+            escaped_brands = sorted(
+                (re.escape(term.strip()) for term in brand_terms if term.strip()),
+                key=len, reverse=True
+            )
+
+            # Combined brand pattern
+            #wrap in \b...\b for word-boundary matching
+            brand_pattern = r'\b(?:' + '|'.join(escaped_brands) + r')\b'
+            self.brand_pattern = re.compile(brand_pattern, re.IGNORECASE)
+        else:
+            # if config has nothing, fall back to empty-match pattern
+            self.brand_pattern = re.compile(r'(?!)')
 
         # Category patterns - common product categories
-        category_indicators = [
-            r'\b(milk|maziwa|ziwa|milk powder|milkpowder|long life|uhl|uhl milk)\b',
-            r'\b(sugar|sukari|brown sugar|white sugar|icing sugar)\b',
-            r'\b(oil|cooking oil|salad oil|miombo|pwani oils|pwani)\b',
-            r'\b(flour|unga|maize flour|wheat flour|all purpose|apel|apel flour)\b',
-            r'\b(salt|mchicha|table salt|iodized salt|refined salt)\b',
-            r'\b(tea|chai|tea leaves|kenyan tea|kericho tea|ketepa)\b',
-            r'\b(bread|mkate|white bread|brown bread|whole wheat|alumnium)\b',
-            r'\b(rice|mchele|basmati rice|pishori rice|indian rice)\b',
-            r'\b(beans|maharagwe|yellow beans|red beans|mwitemania)\b',
-            r'\b(pasta|spaghetti|macaroni|penne|fusilli|italian pasta)\b',
-            r'\b(biscuits|cookies|marie biscuits|glucose biscuits|maryland)\b',
-            r'\b(soap|bar soap|detergent|washing powder|omo|omi| detergents)\b',
-            r'\b(toothpaste|colgate|pepsodent|closeup|aquafresh)\b',
-            r'\b(cigarettes|cigarettes|sportsman|sportsman cigarettes|sportsman)\b',
-        ]
+        category_terms = query_parser_config.get('category_terms', [])
 
-        category_pattern = '|'.join(category_indicators)
-        self.category_pattern = re.compile(category_pattern, re.IGNORECASE)
-
+        if category_terms:
+            escaped_categories = sorted(
+                (re.escape(term.strip()) for term in category_terms if term.strip()),
+                key=len, reverse=True
+            )
+            category_pattern = r'\b(?:' + '|'.join(escaped_categories) + r')\b'
+            self.category_pattern = re.compile(category_pattern, re.IGNORECASE)
+        else:
+            self.category_pattern = re.compile(r'(?!)')
         # Size and unit patterns
         size_unit_patterns = [
             # Pattern: number + space + unit
@@ -112,9 +105,10 @@ class QueryParser:
             (r'\b(half|quarter)\s+(kg|kgs?|kilogram|kilograms|g|grams?|gram|ml|milliliters?|millilitres?l|ltr|litre|liter|litres|liters|oz|ounces?|lb|lbs?|pound|pounds)\b', 'fraction_unit'),
         ]
 
-        self.size_unit_patterns = []
-        for pattern, group_type in size_unit_patterns:
-            self.size_unit_patterns.append((re.compile(pattern, re.IGNORECASE), group_type))
+        self.size_unit_patterns = [
+            (re.compile(pattern, re.IGNORECASE), group_type)
+            for pattern, group_type in size_unit_patterns
+        ]
 
     def parse_query(self, query: str) -> ParsedQuery:
         """

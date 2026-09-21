@@ -89,14 +89,16 @@ class SearchPipeline:
             parsed_query = parse_query(normalized_query)
 
             # Step 3: Vector Search (Top 50)
+            from .config import get_vector_search_config
+
+            vector_config = get_vector_search_config()
             logger.debug(f"Performing vector search for: '{normalized_query}' (limit: {vector_limit})")
             vector_results = await self.vector_service.search_similar_products(
                 query_text=normalized_query,
                 limit=vector_limit,
                 # score_threshold=0.1  # Low threshold to get more candidates // this is letting in too much junk in the search results, i need to increase the threshold
-                score_threshold=0.5     # Increased threshold to filter out low-quality matches, but may reduce recall // optimum to be throughly tested and tuned for best results
+                score_threshold=vector_config['score_threshold']
             )
-
             # Step 4: RapidFuzz Re-ranking (on vector results only)
             logger.debug(f"Performing RapidFuzz re-ranking on {len(vector_results)} vector results")
             fuzzy_results = await self._rapidfuzz_rerank(
@@ -122,7 +124,8 @@ class SearchPipeline:
 
             no_confident_match = len(confident_results) == 0
 
-            final_results = ranked_results[:limit]
+            # Only surface confident matches, capped at `limit`.
+            final_results = confident_results[:limit]
 
             # Format results for output
             formatted_results = []
@@ -163,21 +166,6 @@ class SearchPipeline:
     ) -> List[Dict[str, Any]]:
         """
         Apply RapidFuzz re-ranking to vector search results.
-
-        FIX (Bug 2): the previous implementation keyed a flat `product_map`
-        dict by the term string alone (e.g. "general", "naivas"). Whenever
-        two different products shared an identical category/brand/alias
-        string -- extremely common in this catalog, e.g. the "general"
-        category bucket -- the second product to be indexed silently
-        overwrote the first in `product_map`. A high fuzzy score on that
-        shared term would then get attributed to whichever product happened
-        to be inserted last, not the product that's actually relevant to the
-        query. That's how an unrelated cheap item could end up carrying a
-        real (but misattributed) fuzzy score.
-
-        Fix: score fuzzy match PER PRODUCT (max score across that product's
-        own terms) instead of pooling every product's terms into one shared
-        flat namespace keyed only by string value.
 
         Args:
             query_text: Normalized query text

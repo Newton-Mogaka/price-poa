@@ -8,7 +8,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 from dataclasses import asdict
-
+import uuid
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from typing import TYPE_CHECKING
 
@@ -59,6 +59,12 @@ class EnhancedVectorSearchService:
         self._initialize_client()
         self._initialize_model()
 
+    def _make_point_id(product_id: str) -> str:
+        """Generate a unique point ID for Qdrant based on the product ID.
+           Reindexing the same products always maps to the same point 
+           so that the vector store can be updated without duplicates."""
+        return str(uuid.uuid5(uuid.NAMESPACE_DNS, product_id))
+    
     def _get_config(self) -> dict:
         """Get vector search configuration."""
         if VECTOR_CONFIG_AVAILABLE:
@@ -125,7 +131,7 @@ class EnhancedVectorSearchService:
     async def search_similar_products(
         self,
         query_text: str,
-        limit: int = 50,
+        limit: int = 40,
         score_threshold: float = 0.3
     ) -> List[Dict[str, Any]]:
         """
@@ -145,7 +151,6 @@ class EnhancedVectorSearchService:
 
         try:
             # Encode the query text to a vector
-            #vector = self.model.encode([query_text])[0].tolist()
             vector = self.model.encode([f"Represent this sentence for searching relevant passages: {query_text}"])[0].tolist()
 
             # Search in Qdrant
@@ -215,10 +220,7 @@ class EnhancedVectorSearchService:
                 logger.warning("Product missing _id, cannot index")
                 return False
 
-            # Create point ID from product ID and text hash
-            import hashlib
-            combined = f"{product_id}_{hashlib.md5(embedding_text.encode()).hexdigest()[:8]}"
-            point_id = abs(hash(combined)) % (2**63 - 1)  # Ensure positive 64-bit int
+            point_id = self._make_point_id(product_id)
 
             # Prepare payload with rich product information
             payload = {
@@ -302,9 +304,8 @@ class EnhancedVectorSearchService:
                     vector = self.model.encode([embedding_text])[0].tolist()
 
                     # Generate point ID
-                    import hashlib
-                    combined = f"{product_id}_{hashlib.md5(embedding_text.encode()).hexdigest()[:8]}"
-                    point_id = abs(hash(combined)) % (2**63 - 1)
+                    
+                    point_id = self._make_point_id(product_id)
 
                     # Build product document for rich payload
                     from .product_representation import ProductRepresentationBuilder

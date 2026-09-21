@@ -106,8 +106,8 @@ QUERY_PARSER_CONFIG = {
     # Brand patterns (common brands)
     'brand_patterns': [
         'broookside', 'brookeside', 'brookside',
-        'daima', ' dairy',
-        'jogoo', 'jogoo',
+        'daima', 'dairy',
+        'jogoo', 'jogoo maize flour',
         'bidco', 'bidco oil refineries',
         "mumias", 'mumias sugar',
         'kericho gold', 'kericomb',
@@ -174,7 +174,7 @@ VECTOR_SEARCH_CONFIG = {
     'qdrant_host': os.getenv('QDRANT_HOST', 'host.docker.internal'),
     'qdrant_port': int(os.getenv('QDRANT_PORT', '6333')),
     'search_limit': int(os.getenv('VECTOR_SEARCH_LIMIT', '50')),
-    'score_threshold': float(os.getenv('VECTOR_SCORE_THRESHOLD', '0.3')),
+    'score_threshold': float(os.getenv('VECTOR_SCORE_THRESHOLD', '0.5')),
 }
 
 # Business Ranker configuration

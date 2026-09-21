@@ -14,17 +14,7 @@ from .config import get_normalization_config
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# FIX (Bug 1): Kenyan-market shorthand/abbreviations that use punctuation as
-# part of the token (e.g. "m/wave", "w/machine"). These MUST be expanded
-# before punctuation is stripped and the text is tokenized, otherwise the
-# slash is removed first, the phrase is shredded into separate single-word
-# tokens ("m" + "wave"), and no synonym entry can ever match it again.
-#
-# Patterns are matched case-insensitively as whole tokens/phrases. Extend
-# this list (or move it into normalization config) as more shorthand shows
-# up in query_logs.
-# ---------------------------------------------------------------------------
+
 DEFAULT_ABBREVIATION_PATTERNS: List[Tuple[str, str]] = [
     (r'\bm\s*/\s*wave\b', 'microwave'),
     (r'\bw\s*/\s*machine\b', 'washing machine'),
