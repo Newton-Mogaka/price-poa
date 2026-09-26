@@ -7,7 +7,6 @@ import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ConnectionFailure
 import logging
-
 # Load environment variables from .env file if available (useful for local development runs)
 try:
     from dotenv import load_dotenv

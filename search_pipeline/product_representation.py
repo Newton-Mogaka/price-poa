@@ -6,6 +6,7 @@ Creates structured embedding documents from product attributes instead of just p
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -133,14 +134,26 @@ class ProductRepresentationBuilder:
         product_id = str(product_data.get('_id', ''))
         product_name = product_data.get('name', '').strip()
 
-        # Extract structured attributes
+        # Extract structured attributes discarding placeholder values that
+        # carry no real product signal (e.g. "unknown" brand, "general"
+        # category) so they don't get embedded as if they were meaningful.
+        UNKNOWN_MARKERS = {"unknown", "n/a", "none", "", "general"}
+
         brand = product_data.get('brand')
         if brand:
-            brand = brand.strip() if brand else None
+            brand = brand.strip() 
+            if brand.lower() in UNKNOWN_MARKERS:
+                brand = None
+        else:
+            brand = None
 
         category = product_data.get('category')
         if category:
-            category = category.strip() if category else None
+            category = category.strip() 
+            if category.lower() in UNKNOWN_MARKERS:
+                catregory = None
+        else:
+            category = None
 
         # Extract size and variant information
         size, unit = self._extract_size_unit(product_data)
