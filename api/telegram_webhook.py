@@ -764,7 +764,15 @@ async def get_products_for_shopping_list(db, product_names: List[str]) -> List[D
             continue
 
         # Get product matches using the new search pipeline
-        search_results = await search_products(db, name.strip(), limit=5)
+        search_response = await search_products(db, name.strip(), limit=5)
+        search_results = search_response["results"]
+        no_confident_match = search_response["no_confident_match"]
+
+        if no_confident_match or not search_results:
+            # No confident match for this item — fall through to the
+            # original find_product fallback below rather than treating
+            # this as "found with zero candidates".
+            search_results = []
 
         best_match = None
         best_price = float('inf')  # Start with infinity as worst price
