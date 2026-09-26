@@ -1533,11 +1533,35 @@ async def process_telegram_message(chat_id: int, text: str, background_tasks: Op
                 "data": {"query_text": text},
             }
 
+        options = []
+        for match in matches:
+            product_for_pricing = {"_id": match["product_id"]}
+            prices_data = await get_product_prices(db, product_for_pricing)
+
+            if prices_data and prices_data.get("stores"):
+                cheapest_store = prices_data["stores"][0]
+                options.append({
+                    "product_id": match["product_id"],
+                    "name": match["product_name"],
+                    "price_label": cheapest_store["price"],
+                    "price_value": parse_price_value(cheapest_store["price"]),
+                    "store_name": cheapest_store["name"],
+                    "offer": cheapest_store.get("offer", False),
+                    "confidence": match["final_score"],
+                    "match_type": "hybrid_search",
+                })
+
+        if not options:
+            return {
+                "type": "not_found",
+                "data": {"query_text": text},
+            }
+
         return {
             "type": "product_options",
             "data": {
                 "query_text": text,
-                "options": matches,
+                "options": options,
                 "date": datetime.now().strftime("%Y-%m-%d"),
             },
         }
