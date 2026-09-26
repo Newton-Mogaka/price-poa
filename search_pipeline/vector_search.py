@@ -59,6 +59,7 @@ class EnhancedVectorSearchService:
         self._initialize_client()
         self._initialize_model()
 
+    @staticmethod
     def _make_point_id(product_id: str) -> str:
         """Generate a unique point ID for Qdrant based on the product ID.
            Reindexing the same products always maps to the same point 
