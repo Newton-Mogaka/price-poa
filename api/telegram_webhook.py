@@ -7,6 +7,7 @@ Handles chat sessions, reviews, and credibility scoring for grocers.
 from fastapi import APIRouter, Request, HTTPException, Header, BackgroundTasks
 from fastapi.responses import JSONResponse
 import logging
+import re
 import requests
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
@@ -37,6 +38,11 @@ logger = logging.getLogger("uvicorn.error")
 
 # Router
 router = APIRouter()
+
+# If the WHOLE message matches a single product at or above this score, it is
+# treated as one product even when it contains "and" / "&" (e.g. "Johnson & Johnson
+# baby oil"). Tune this against real final_score values from search_products.
+SINGLE_PRODUCT_CONFIDENCE = 0.85
 
 # Webhook Models
 class TelegramUpdate(BaseModel):
@@ -470,219 +476,51 @@ async def handle_callback_query(callback_query: Dict[str, Any]):
         logger.error(f"Error handling callback query: {e}")
 
 
+# ---------------------------------------------------------------------------
+# Shopping list vs single product detection
+#
+# A shopping list is SEVERAL items. A single product is ONE item, however many
+# words its name has. Items are separated only by explicit separators (commas,
+# semicolons, newlines, "&", "+", the whole words "and"/"plus", bullets and
+# numbered lines) - never by word count.
+# ---------------------------------------------------------------------------
+
+_INTENT_PREFIX = re.compile(
+    r"^\s*(?:shopping list\s*:|i (?:want|need) to buy|can you show me prices for|"
+    r"show me prices for|what (?:is|are) the prices? of|prices? for|buy|get)\s+",
+    re.IGNORECASE,
+)
+_PRICE_SUFFIX = re.compile(r"\s+(?:prices?|costs?)\s*[?.!]*\s*$", re.IGNORECASE)
+_LIST_SPLIT = re.compile(
+    r"\s*(?:,|;|\n|&|\+|\band\b|\bplus\b|^\s*[-*•]\s+|^\s*\d+[.)]\s+)\s*",
+    re.IGNORECASE | re.MULTILINE,
+)
+_QTY_PREFIX = re.compile(
+    r"^\s*\d+(?:\.\d+)?\s*(?:x|kg|g|ml|l|pcs?|pieces?|packs?)\s+", re.IGNORECASE
+)
+
+
 def extract_product_names_from_shopping_list(text: str) -> List[str]:
     """
-    Extract potential product names from a shopping list query.
+    Return one entry per item the user listed.
+
+    A single product, however long its name, yields exactly one entry.
+    Only explicit separators create additional entries.
 
     Args:
         text: The user's message text
 
     Returns:
-        List of potential product names to look up
+        List of item names (lowercased, quantity prefix and filler stripped)
     """
-    # Convert to lowercase for processing
-    text_lower = text.lower().strip()
-
-    # Remove common shopping-related phrases
-    shopping_indicators = [
-        "i want to buy", "i need to buy", "can you show me prices for",
-        "shopping list:", "buy", "get", "need", "want", "show me prices for",
-        "what is the price of", "what are the prices of", "prices for",
-        " cost", " costs", "price", "prices"
-    ]
-
-    for indicator in shopping_indicators:
-        text_lower = text_lower.replace(indicator, "")
-
-    # Split by common delimiters
-    # First replace common conjunctions and punctuation with spaces
-    for delim in [",", "&", "and", "plus", "+"]:
-        text_lower = text_lower.replace(delim, " | ")
-
-    # Split by the pipe delimiter we introduced
-    parts = [part.strip() for part in text_lower.split("|") if part.strip()]
-
-    # Extract meaningful terms
-    terms = []
-
-    # First, add the cleaned text itself if it's substantial
-    cleaned_text = text_lower.strip()
-    if len(cleaned_text) > 2 and not cleaned_text.isdigit():
-        terms.append(cleaned_text)
-
-    # Extract meaningful multi-word combinations (2-3 words)
-    words_with_pos = text_lower.split()
-    for i in range(len(words_with_pos)):
-        # 2-word combinations
-        if i < len(words_with_pos) - 1:
-            two_word = f"{words_with_pos[i]} {words_with_pos[i+1]}"
-            two_word = two_word.strip(".,!?;:")
-            # Only add if it's not just common words and has sufficient length
-            if len(two_word) > 3 and not _is_meaningless_phrase(two_word):
-                terms.append(two_word)
-        # 3-word combinations
-        if i < len(words_with_pos) - 2:
-            three_word = f"{words_with_pos[i]} {words_with_pos[i+1]} {words_with_pos[i+2]}"
-            three_word = three_word.strip(".,!?;:")
-            # Only add if it's not just common words and has sufficient length
-            if len(three_word) > 3 and not _is_meaningless_phrase(three_word):
-                terms.append(three_word)
-
-    # Extract single meaningful words (nouns, etc.) but be very selective
-    # Skip extremely common words that are unlikely to be product names
-    stop_words = {"a", "an", "the", "of", "for", "in", "on", "at", "to", "from",
-                  "with", "by", "is", "are", "was", "were", "be", "been", "being",
-                  "have", "has", "had", "do", "does", "did", "will", "would", "should",
-                  "could", "may", "might", "must", "can", "and", "or", "but", "in",
-                  "on", "at", "to", "for", "of", "with", "by", "about", "like",
-                  "through", "over", "before", "between", "after", "since", "without",
-                  "under", "within", "along", "following", "across", "behind",
-                  "beyond", "plus", "except", "but", "up", "down", "in", "out",
-                  "on", "off", "over", "under", "again", "further", "then", "once",
-                  "here", "there", "when", "where", "why", "how", "all", "any",
-                  "both", "each", "few", "more", "most", "other", "some", "such",
-                  "no", "nor", "not", "only", "own", "same", "so", "than", "too",
-                  "very", "s", "t", "can", "will", "just", "don", "should", "now"}
-
-    # Also skip units and quantities as they're handled elsewhere
-    unit_words = {"kg", "g", "mg", "ml", "l", "ltr", "liter", "litre",
-                  "piece", "pieces", "pc", "pcs", "bottle", "bottles",
-                  "packet", "packets", "pack", "packs", "can", "cans",
-                  "jar", "jars", "tin", "tins", "bag", "bags",
-                  "pouch", "pouches", "box", "boxes", "dozen"}
-
-    # Descriptor words that are only meaningful as part of a phrase, not standalone
-    descriptor_words = {"baby", "premium", "large", "small", "fresh", "organic",
-                        "natural", "new", "classic", "original", "extra",
-                        "super", "mega", "mini", "jumbo", "value", "family",
-                        "regular", "select", "choice", "quality", "special"}
-
-    for part in parts:
-        # Split by spaces and consider each word
-        subparts = part.split()
-        for word in subparts:
-            # Remove any trailing/leading punctuation
-            word = word.strip(".,!?;:")
-            # Only consider words that are not too short, not stop words, not units, and not descriptors
-            if (len(word) > 2 and
-                word not in stop_words and
-                word not in unit_words and
-                word not in descriptor_words and   # Skip descriptor words as standalone terms
-                not word.isdigit()):  # Not just a number
-                terms.append(word)
-
-    # Remove duplicates while preserving order
-    seen = set()
-    unique_terms = []
-    for term in terms:
-        if term not in seen:
-            seen.add(term)
-            unique_terms.append(term)
-
-    return unique_terms
-
-
-def _is_meaningless_phrase(phrase: str) -> bool:
-    """
-    Check if a phrase is likely to be meaningless for product matching.
-
-    Args:
-        phrase: The phrase to check
-
-    Returns:
-        True if the phrase is likely meaningless, False otherwise
-    """
-    # Common meaningless phrases
-    meaningless_patterns = [
-        "the ", "and ", "or ", "but ", "in ", "on ", "at ", "to ", "for ",
-        "of ", "with ", "by ", "is ", "are ", "was ", "were ", "be ", "been ",
-        "have ", "has ", "had ", "do ", "does ", "did ", "will ", "would ",
-        "should ", "could ", "may ", "might ", "must ", "can ", "it ", "its ",
-        "this ", "that ", "these ", "those ", "he ", "she ", "they ", "we ",
-        "you ", "i ", "me ", "him ", "her ", "us ", "them "
-    ]
-
-    phrase_lower = phrase.lower() + " "  # Add space to match patterns
-    for pattern in meaningless_patterns:
-        if phrase_lower.startswith(pattern):
-            return True
-
-    # Also check if it's mostly just common words
-    words = phrase.split()
-    if len(words) > 0:
-        meaningless_words = {"the", "and", "or", "but", "in", "on", "at", "to", "for",
-                           "of", "with", "by", "is", "are", "was", "were", "be", "been",
-                           "have", "has", "had", "do", "does", "did", "will", "would",
-                           "should", "could", "may", "might", "must", "can", "it", "its",
-                           "this", "that", "these", "those", "he", "she", "they", "we",
-                           "you", "i", "me", "him", "her", "us", "them", "a", "an"}
-        meaningful_count = sum(1 for w in words if w.lower() not in meaningless_words)
-        # If less than 30% of words are meaningful, consider the phrase meaningless
-        if len(words) > 0 and (meaningful_count / len(words)) < 0.3:
-            return True
-
-    return False
-
-
-def extract_meaningful_product_terms(text: str) -> List[str]:
-    """
-    Extract and filter product terms, removing quantities, units, and non-meaningful terms.
-    This helps determine if we have multiple products vs false positives.
-
-    Args:
-        text: The user's message text
-
-    Returns:
-        List of filtered product terms likely to be actual product names
-    """
-    # First extract all potential terms
-    all_terms = extract_product_names_from_shopping_list(text)
-
-    # Filter out terms that look like quantities or units
-    filtered_terms = []
-    import re
-    unit_words = {"kg", "g", "mg", "ml", "l", "ltr", "liter", "litre",
-                  "piece", "pieces", "pc", "pcs", "bottle", "bottles",
-                  "packet", "packets", "pack", "packs", "can", "cans",
-                  "jar", "jars", "tin", "tins", "bag", "bags",
-                  "pouch", "pouches", "box", "boxes", "dozen"}
-
-    for term in all_terms:
-        term_lower = term.lower().strip()
-
-        # Skip if it's just a number
-        if term.isdigit():
-            continue
-
-        # Skip if it looks like a quantity (number + unit)
-        # e.g., "2kg", "1.5l", "500g"
-        if re.match(r'^\d+(\.\d+)?\s*(kg|g|mg|ml|l|ltr|liter|litre|piece|pieces|pc|pcs|bottle|bottles|packet|packets|pack|packs|can|cans|jar|jars|tin|tins|bag|bags|pouch|pouches|box|boxes|dozen)\s*$', term_lower):
-            continue
-
-        # Skip if it's just a unit
-        if term_lower in unit_words:
-            continue
-
-        # Skip if it's too short (likely not a meaningful product name)
-        if len(term_lower) < 3:
-            continue
-
-        # Skip if it's a common word that is unlikely to be a product name
-        common_words = {"and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "is", "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "will", "would", "should", "could", "may", "might", "must", "can", "it", "its", "this", "that", "these", "those", "he", "she", "they", "we", "you", "i", "me", "him", "her", "us", "them", "a", "an", "the"}
-        if term_lower in common_words:
-            continue
-
-        filtered_terms.append(term)
-
-    # Remove duplicates while preserving order
-    seen = set()
-    unique_filtered_terms = []
-    for term in filtered_terms:
-        if term not in seen:
-            seen.add(term)
-            unique_filtered_terms.append(term)
-
-    return unique_filtered_terms
+    cleaned = _PRICE_SUFFIX.sub("", _INTENT_PREFIX.sub("", text.strip()))
+    items, seen = [], set()
+    for part in _LIST_SPLIT.split(cleaned):
+        item = _QTY_PREFIX.sub("", (part or "").strip()).strip(" .!?").lower()
+        if len(item) > 2 and not item.isdigit() and item not in seen:
+            seen.add(item)
+            items.append(item)
+    return items
 
 
 async def find_alternative_product_in_store(db, product: dict, store_id: str) -> Optional[Dict[str, Any]]:
@@ -1000,7 +838,7 @@ async def get_shopping_list_data(db, products: List[Dict[str, Any]]) -> Dict[str
                 "items": store_items[store_id],
                 "product_count": found_products
             })
-        
+
 
     # Sort stores: most complete basket first, then by total price ascending
     store_totals.sort(key=lambda x: (-x["product_count"], x["total_value"]))
@@ -1468,22 +1306,34 @@ async def process_telegram_message(chat_id: int, text: str, background_tasks: Op
             "data": {"message": "You are not currently in an active chat session."}
         }
 
-    # Enhanced logic: Check for shopping keywords OR multiple product terms
-    shopping_keywords = ["list", "basket", "shopping", "buy", "get", "shop", "market"]
+    # ------------------------------------------------------------------
+    # Shopping list vs single product
+    #
+    # A shopping list is several separately listed items. A single product is
+    # one item, however many words its name has. Word count and substring
+    # keyword matching are deliberately NOT used.
+    # ------------------------------------------------------------------
+    db = await get_database()
+    items = extract_product_names_from_shopping_list(text)
 
-    # Extract meaningful product terms to detect multiple products
-    meaningful_terms = extract_meaningful_product_terms(text)
-    has_multiple_products = len(meaningful_terms) >= 2
+    # Guard: names that themselves contain "and" / "&" (e.g. "Johnson & Johnson
+    # baby oil", "salt and vinegar crisps") would be split into fragments. If the
+    # whole message is a confident match for one product, keep it as one item.
+    if len(items) >= 2:
+        whole = await search_products(db, text, limit=1)
+        if (
+            not whole["no_confident_match"]
+            and whole["results"]
+            and whole["results"][0]["final_score"] >= SINGLE_PRODUCT_CONFIDENCE
+        ):
+            logger.info(f"Treating '{text}' as a single product (confident whole-text match)")
+            items = [text]
 
-    # Treat as shopping list if we see shopping keywords OR multiple products
-    is_shopping_list = any(keyword in text_lower for keyword in shopping_keywords) or has_multiple_products
+    is_shopping_list = len(items) >= 2
 
     if is_shopping_list:
         # Shopping list - process the request to get real data
-        db = await get_database()
-
-        # Extract potential product names from the text
-        product_names = extract_product_names_from_shopping_list(text)
+        product_names = items
         logger.info(f"Extracted product names: {product_names}")
 
         # Look up the products in the database
@@ -1530,9 +1380,10 @@ async def process_telegram_message(chat_id: int, text: str, background_tasks: Op
                 }
             }
     else:
-        # Single product query - return multiple options for comparison
-        db = await get_database()
-        search_response = await search_products(db,text,limit=5)
+        # Single product query - return multiple options for comparison.
+        # Search with the cleaned item name (e.g. "what is the price of unga" -> "unga").
+        query = items[0] if items else text
+        search_response = await search_products(db, query, limit=5)
         matches = search_response["results"]
         no_confident_match = search_response["no_confident_match"]
         if no_confident_match or not matches:
@@ -1795,7 +1646,8 @@ async def telegram_webhook(
     # Handle start command
     if processed["type"] == "start":
         welcome_text = (
-            "Welcome to PricePoa, your ultimate shopping partner, we help you find the best prices in you area by typing the products you need or a list of your entire shopping. Let's get Shopping!🛒"
+            "Welcome to PricePoa, your ultimate shopping partner, we help you find the best prices in you area by typing the products you need or a list of your entire shopping. "
+            "To compare a whole shopping list, separate your items with commas or put each on a new line (e.g. unga, sugar, cooking oil). Let's get Shopping!🛒"
         )
         send_telegram_text(chat_id, welcome_text)
         return JSONResponse(status_code=200, content={"status": "accepted"})
