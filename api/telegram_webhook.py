@@ -1407,6 +1407,7 @@ async def process_telegram_message(chat_id: int, text: str, background_tasks: Op
                     "store_name": cheapest_store["name"],
                     "offer": cheapest_store.get("offer", False),
                     "confidence": match["final_score"],
+                    "stores": prices_data["stores"],  # every store's price -> per-store grid in the infographic
                     "match_type": "hybrid_search",
                 })
 
@@ -1548,6 +1549,7 @@ async def telegram_webhook(
                     "price_value": parse_price_value(cheapest_store["price"]),
                     "store_name": cheapest_store["name"],
                     "offer": cheapest_store["offer"],
+                    "stores": prices_data["stores"],
                     "confidence": 1.0,  # we are confident because we decoded a barcode/QR
                     "match_type": "barcode" if symbology in ("EAN13", "UPCA") else "qr",
                 }
