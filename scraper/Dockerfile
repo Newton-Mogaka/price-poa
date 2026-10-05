@@ -11,11 +11,18 @@ WORKDIR /app
 
 # Copy the scraper requirements and install dependencies
 COPY scraper/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --retries 10 --timeout 60 -r requirements.txt
 
 # Install Playwright browsers
-RUN playwright install --with-deps
+RUN playwright install-deps firefox
 RUN python -m invisible_playwright fetch
+
+RUN for i in 1 2 3 4 5; do \
+      python -m invisible_playwright fetch && break \
+      || { echo "fetch retry $i"; sleep 15; }; \
+    done \
+ && python -m invisible_playwright version
+
 
 # Set environment variables for scraping
 ENV PYTHONPATH=/app
@@ -25,5 +32,6 @@ ENV SCRAPER_DOWNLOAD_DELAY=1
 ENV ENABLE_SCRAPER=true
 ENV SCRAPY_SETTINGS_MODULE=scraper.settings
 
+COPY . .
 # Set the default command to run the worker script
 CMD ["python", "scraper/worker.py", "--mode", "scheduled"]
