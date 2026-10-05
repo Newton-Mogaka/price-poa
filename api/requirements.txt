@@ -26,3 +26,9 @@ qdrant-client
 #SCANNING REQUIREMENTS
 pyzbar
 zxing-cpp
+
+# Agent requirements
+pydantic
+pydantic-settings
+groq
+anthropic
