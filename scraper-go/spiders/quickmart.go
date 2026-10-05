@@ -609,7 +609,7 @@ func extractQuickmartFromJSONLD(html string, productURL string, category string,
 			}
 			if itemMap["@type"] == "Product" || (itemMap["@type"] != nil && strings.Contains(fmt.Sprint(itemMap["@type"]), "Product")) {
 				// Extract product details
-				name := scraper.ExtractString(itemMap, "name")
+				name := scraper.extractString(itemMap, "name")
 				if name == "" {
 					continue
 				}
@@ -703,7 +703,7 @@ func extractQuickmartFromJSONLDFallback(html string, productURL string, category
 				continue
 			}
 			if itemMap["@type"] == "Product" || (itemMap["@type"] != nil && strings.Contains(fmt.Sprint(itemMap["@type"]), "Product")) {
-				name := scraper.ExtractString(itemMap, "name")
+				name := scraper.extractString(itemMap, "name")
 				if name == "" {
 					continue
 				}
@@ -860,7 +860,7 @@ func extractQuickmartFromCSS(html string, productURL string, category string, st
 	}
 
 	// Clean price text (remove currency symbols, etc.)
-	price := scraper.CleanPrice(priceText)
+	price := scraper.cleanPrice(priceText)
 
 	return &bson.M{
 		"product_name":   strings.TrimSpace(productName),

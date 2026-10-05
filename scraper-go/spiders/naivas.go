@@ -207,7 +207,7 @@ func extractNaivasFromJSONLD(html string, productURL string, category string) *b
 			}
 			if itemMap["@type"] == "Product" || (itemMap["@type"] != nil && strings.Contains(fmt.Sprint(itemMap["@type"]), "Product")) {
 				// Extract product details
-				name := extractString(itemMap, "name")
+				name := scraper.extractString(itemMap, "name")
 				if name == "" {
 					continue
 				}
@@ -296,7 +296,7 @@ func extractNaivasFromJSONLDFallback(html string, productURL string, category st
 				continue
 			}
 			if itemMap["@type"] == "Product" || (itemMap["@type"] != nil && strings.Contains(fmt.Sprint(itemMap["@type"]), "Product")) {
-				name := extractString(itemMap, "name")
+				name := scraper.extractString(itemMap, "name")
 				if name == "" {
 					continue
 				}
@@ -440,7 +440,7 @@ func extractNaivasFromCSS(html string, productURL string, category string) *bson
 	}
 
 	// Clean price text (remove currency symbols, etc.)
-	price := scraper.CleanPrice(priceText)
+	price := scraper.cleanPrice(priceText)
 
 	return &bson.M{
 		"product_name":   strings.TrimSpace(productName),

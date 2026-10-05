@@ -231,7 +231,7 @@ func extractFromJSONLD(html string, productURL string) *bson.M {
 			}
 			if itemMap["@type"] == "Product" || (itemMap["@type"] != nil && strings.Contains(fmt.Sprint(itemMap["@type"]), "Product")) {
 				// Extract product details
-				name := extractString(itemMap, "name")
+				name := scraper.extractString(itemMap, "name")
 				if name == "" {
 					continue
 				}
@@ -320,7 +320,7 @@ func extractFromJSONLDFallback(html string, productURL string) *bson.M {
 				continue
 			}
 			if itemMap["@type"] == "Product" || (itemMap["@type"] != nil && strings.Contains(fmt.Sprint(itemMap["@type"]), "Product")) {
-				name := extractString(itemMap, "name")
+				name := scraper.extractString(itemMap, "name")
 				if name == "" {
 					continue
 				}
@@ -464,7 +464,7 @@ func extractFromCSS(html string, productURL string) *bson.M {
 	}
 
 	// Clean price text (remove currency symbols, etc.)
-	price := scraper.CleanPrice(priceText)
+	price := scraper.cleanPrice(priceText)
 
 	return &bson.M{
 		"product_name":   strings.TrimSpace(productName),
