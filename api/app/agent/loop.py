@@ -187,9 +187,13 @@ class AgentLoop:
                         except json.JSONDecodeError:
                             tool_args = {}
 
+                    # Add chat_id to tool arguments for tools that need it
+                    tool_args_with_context = tool_args.copy()
+                    tool_args_with_context["chat_id"] = chat_id
+
                     try:
-                        logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
-                        result = await self.tool_registry.execute_tool(tool_name, tool_args)
+                        logger.debug(f"Executing tool: {tool_name} with args: {tool_args_with_context}")
+                        result = await self.tool_registry.execute_tool(tool_name, tool_args_with_context)
 
                         tool_result = ToolResult(
                             name=tool_name,

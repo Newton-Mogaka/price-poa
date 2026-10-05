@@ -48,7 +48,7 @@ class SearchProductsTool:
         Execute the product search tool.
 
         Args:
-            arguments: Tool arguments containing query, location, and limit
+            arguments: Tool arguments containing query, location, limit, and chat_id
 
         Returns:
             Dictionary with search results
@@ -56,6 +56,7 @@ class SearchProductsTool:
         query = arguments.get("query", "").strip()
         location = arguments.get("location")
         limit = arguments.get("limit", 5)
+        chat_id = arguments.get("chat_id")  # chat_id is accepted but not used in this tool
 
         if not query:
             return {

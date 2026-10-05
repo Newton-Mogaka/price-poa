@@ -4,6 +4,7 @@ Handle adding/removing items from user's shopping list.
 """
 import logging
 from typing import Dict, Any
+from datetime import datetime
 from ..memory.store import ChatMemoryStore
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,7 @@ class AddToListTool:
         Execute the add to list tool.
 
         Args:
-            arguments: Tool arguments containing item, quantity, and unit
+            arguments: Tool arguments containing item, quantity, unit, and chat_id
 
         Returns:
             Dictionary with execution result
@@ -58,6 +59,7 @@ class AddToListTool:
         item = arguments.get("item", "").strip()
         quantity = arguments.get("quantity", 1.0)
         unit = arguments.get("unit")
+        chat_id = arguments.get("chat_id")
 
         if not item:
             return {
@@ -65,17 +67,36 @@ class AddToListTool:
                 "error": "Item parameter is required and cannot be empty"
             }
 
+        if chat_id is None:
+            return {
+                "success": False,
+                "error": "Chat ID is required for this operation"
+            }
+
         try:
-            # TODO: We need to get chat_id from context - this is a limitation
-            # For now, we'll need to modify the approach to pass chat_id through
-            # This will be handled in the loop.py when calling tools
-            # For now, return a placeholder that indicates the tool structure is correct
+            # Add item to the user's draft list in memory
+            draft_list = await _memory_store.get_draft_list(chat_id)
+
+            # Create new draft item
+            new_item = {
+                "name": item,
+                "quantity": quantity,
+                "unit": unit,
+                "added_at": datetime.utcnow().isoformat()
+            }
+
+            draft_list.append(new_item)
+
+            # Save updated draft list
+            await _memory_store.set_draft_list(chat_id, draft_list)
+
             return {
                 "success": True,
                 "message": f"Added '{item}' to shopping list",
                 "item": item,
                 "quantity": quantity,
-                "unit": unit
+                "unit": unit,
+                "draft_list": draft_list
             }
         except Exception as e:
             logger.error(f"Error in add_to_list tool: {e}")
@@ -111,12 +132,13 @@ class RemoveFromListTool:
         Execute the remove from list tool.
 
         Args:
-            arguments: Tool arguments containing item to remove
+            arguments: Tool arguments containing item to remove and chat_id
 
         Returns:
             Dictionary with execution result
         """
         item = arguments.get("item", "").strip()
+        chat_id = arguments.get("chat_id")
 
         if not item:
             return {
@@ -124,12 +146,35 @@ class RemoveFromListTool:
                 "error": "Item parameter is required and cannot be empty"
             }
 
+        if chat_id is None:
+            return {
+                "success": False,
+                "error": "Chat ID is required for this operation"
+            }
+
         try:
-            # TODO: Same limitation as above - need chat_id context
+            # Remove item from the user's draft list in memory
+            draft_list = await _memory_store.get_draft_list(chat_id)
+
+            # Find and remove items matching the name (case-insensitive)
+            original_length = len(draft_list)
+            draft_list = [it for it in draft_list if it.get("name", "").lower() != item.lower()]
+
+            if len(draft_list) == original_length:
+                # Item not found
+                return {
+                    "success": False,
+                    "error": f"Item '{item}' not found in shopping list"
+                }
+
+            # Save updated draft list
+            await _memory_store.set_draft_list(chat_id, draft_list)
+
             return {
                 "success": True,
                 "message": f"Removed '{item}' from shopping list",
-                "item": item
+                "item": item,
+                "draft_list": draft_list
             }
         except Exception as e:
             logger.error(f"Error in remove_from_list tool: {e}")
@@ -158,17 +203,27 @@ class GetDraftListTool:
         Execute the get draft list tool.
 
         Args:
-            arguments: Tool arguments (none expected)
+            arguments: Tool arguments containing chat_id
 
         Returns:
             Dictionary with the current draft list
         """
+        chat_id = arguments.get("chat_id")
+
+        if chat_id is None:
+            return {
+                "success": False,
+                "error": "Chat ID is required for this operation"
+            }
+
         try:
-            # TODO: Same limitation - need chat_id context
+            # Get draft list from memory
+            draft_list = await _memory_store.get_draft_list(chat_id)
+
             return {
                 "success": True,
-                "draft_list": [],  # Placeholder
-                "count": 0
+                "draft_list": draft_list,
+                "count": len(draft_list)
             }
         except Exception as e:
             logger.error(f"Error in get_draft_list tool: {e}")
@@ -197,13 +252,23 @@ class ClearDraftListTool:
         Execute the clear draft list tool.
 
         Args:
-            arguments: Tool arguments (none expected)
+            arguments: Tool arguments containing chat_id
 
         Returns:
             Dictionary with execution result
         """
+        chat_id = arguments.get("chat_id")
+
+        if chat_id is None:
+            return {
+                "success": False,
+                "error": "Chat ID is required for this operation"
+            }
+
         try:
-            # TODO: Same limitation - need chat_id context
+            # Clear the draft list in memory
+            await _memory_store.clear(chat_id)
+
             return {
                 "success": True,
                 "message": "Shopping list cleared",
