@@ -44,13 +44,14 @@ class CompareVariantsTool:
         Execute the compare variants tool.
 
         Args:
-            arguments: Tool arguments containing product_ids and optional location
+            arguments: Tool arguments containing product_ids, optional location, and chat_id
 
         Returns:
             Dictionary with comparison results
         """
         product_ids = arguments.get("product_ids", [])
         location = arguments.get("location")
+        chat_id = arguments.get("chat_id")  # chat_id is accepted but not used in this tool
 
         if not product_ids or not isinstance(product_ids, list):
             return {

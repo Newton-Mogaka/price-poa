@@ -40,22 +40,35 @@ class BuildBasketTool:
         Execute the build basket tool.
 
         Args:
-            arguments: Tool arguments containing optional location
+            arguments: Tool arguments containing optional location and chat_id
 
         Returns:
             Dictionary with basket comparison results and image path
         """
         location = arguments.get("location")
+        chat_id = arguments.get("chat_id")
 
         try:
-            # TODO: Need to get chat_id from context to retrieve draft list
-            # For now, returning placeholder to show tool structure
+            # Get the user's draft list from memory
+            draft_list = await _memory_store.get_draft_list(chat_id) if chat_id else []
+
+            if not draft_list:
+                return {
+                    "success": True,
+                    "message": "Your shopping list is empty",
+                    "text_summary": "Your shopping list is empty. Add some items first!",
+                    "location": location
+                }
+
+            # TODO: Implement actual basket building logic using the draft list
+            # For now, return a placeholder that shows the tool structure is working
             return {
                 "success": True,
                 "message": "Basket built successfully",
                 "image_path": "/tmp/shopping_list.png",  # Placeholder
-                "text_summary": "Your shopping list comparison is ready.",
-                "location": location
+                "text_summary": f"Your shopping list with {len(draft_list)} items is ready.",
+                "location": location,
+                "item_count": len(draft_list)
             }
         except Exception as e:
             logger.error(f"Error in build_basket tool: {e}")
