@@ -112,13 +112,8 @@ func runOnceMode(spider string, town string, branch string) {
 		// List of spiders to run
 		spiders := []string{"thebar_spider", "naivas_spider", "carrefour_spider", "quickmart_spider", "chandarana_spider"}
 		for _, s := range spiders {
-			// For quickmart_spider, we might need to pass town/branch
-			var t, b string
-			if s == "quickmart_spider" {
-				t = town
-				b = branch
-			}
-			runSpiderOnce(s, t, b)
+			// Pass town and branch to all spiders (localization-aware spiders will use them)
+			runSpiderOnce(s, town, branch)
 		}
 	}
 }

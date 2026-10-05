@@ -29,3 +29,4 @@ docker-compose.*.yml
 SUMMARY.md
 TESTING.md
 STAGE_0_FINDINGS.md
+MAINTENANCE_NOTE.md
