@@ -156,8 +156,8 @@ services:
       - .:/app
       - /app/__pycache__
     # Remove profiles to enable by default, or set ENABLE_SCRAPER=true in .env
-    # profiles:
-    #   - scraper
+    profiles:
+     - scraper
 
   # INTELLIGENCE SERVICE
   intelligence:
