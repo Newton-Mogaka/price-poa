@@ -2,124 +2,152 @@ package scraper
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
+	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/chromedp/chromedp"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
-// extractNaivasCategoryLinks extracts category links from the homepage HTML
-func extractNaivasCategoryLinks(html string) []string {
-	var links []string
+const naivasBase = "https://naivas.online"
 
-	// Use chromedp to extract links from HTML string
-	ctx, cancel := chromedp.NewContext(context.Background())
-	defer cancel()
+// ---------- small helpers ----------
 
-	var nodes []*chromedp.Node
-	err := chromedp.Run(ctx,
-		chromedp.HTML(`<html><body>`+html+`</body></html>`, &nodes),
-		chromedp.Nodes(`#mega-menu-full a[href]`, &nodes, chromedp.ByQueryAll),
-	)
-	if err != nil {
-		log.Printf("Error extracting category links with chromedp: %v", err)
-		return extractNaivasCategoryLinksFallback(html)
+func absURL(link string) string {
+	if strings.HasPrefix(link, "/") {
+		return naivasBase + link
 	}
+	return link
+}
 
-	for _, node := range nodes {
-		for _, attr := range node.Attributes {
-			if attr.Key == "href" {
-				link := attr.Val
-				// Make absolute if relative
-				if strings.HasPrefix(link, "/") {
-					link = "https://naivas.online" + link
-				}
-				// Filter for category links (avoid javascript:, mailto:, etc.)
-				if strings.HasPrefix(link, "http") && strings.Contains(link, "/category/") {
-					links = append(links, link)
-				}
-				break
+func docFromHTML(html string) (*goquery.Document, error) {
+	return goquery.NewDocumentFromReader(strings.NewReader(html))
+}
+
+// firstText returns the trimmed text of the first selector that matches non-empty text.
+func firstText(doc *goquery.Document, selectors ...string) string {
+	for _, sel := range selectors {
+		txt := strings.TrimSpace(doc.Find(sel).First().Text())
+		if txt != "" {
+			return txt
+		}
+	}
+	return ""
+}
+
+// parsePriceText pulls the first number out of text like "KES 1,299.00" -> "1299.00".
+func parsePriceText(s string) string {
+	var b strings.Builder
+	started := false
+	for _, r := range s {
+		switch {
+		case r >= '0' && r <= '9':
+			started = true
+			b.WriteRune(r)
+		case r == '.' && started:
+			b.WriteRune(r)
+		case r == ',' && started:
+			// thousands separator, skip
+		default:
+			if started {
+				return strings.TrimRight(b.String(), ".")
 			}
 		}
 	}
-
-	// Deduplicate
-	seen := make(map[string]bool)
-	var uniqueLinks []string
-	for _, link := range links {
-		if !seen[link] {
-			seen[link] = true
-			uniqueLinks = append(uniqueLinks, link)
-		}
-	}
-	return uniqueLinks
+	return strings.TrimRight(b.String(), ".")
 }
 
-// Fallback category link extraction
-func extractNaivasCategoryLinksFallback(html string) []string {
-	var links []string
-	// Simple extraction of href from #mega-menu-full a
-	start := 0
-	for {
-		startIdx := strings.Index(html[start:], `<a`)
-		if startIdx == -1 {
-			break
-		}
-		start += startIdx
-		// Check if this <a> is within #mega-menu-full
-		// Simplified: just look for href after <a
-		hrefIdx := strings.Index(html[start:], `href="`)
-		if hrefIdx == -1 {
-			start++
-			continue
-		}
-		start += hrefIdx + 6 // skip 'href="'
-		endIdx := strings.Index(html[start:], `"`)
-		if endIdx == -1 {
-			start++
-			continue
-		}
-		link := html[start : start+endIdx]
-		start += endIdx
+func ldString(m map[string]interface{}, key string) string {
+	if v, ok := m[key].(string); ok {
+		return strings.TrimSpace(v)
+	}
+	return ""
+}
 
-		// Make absolute if relative
-		if strings.HasPrefix(link, "/") {
-			link = "https://naivas.online" + link
-		}
-		// Filter for category links
-		if strings.Contains(link, "/category/") {
-			links = append(links, link)
+func ldOffer(m map[string]interface{}) map[string]interface{} {
+	switch o := m["offers"].(type) {
+	case map[string]interface{}:
+		return o
+	case []interface{}:
+		if len(o) > 0 {
+			if first, ok := o[0].(map[string]interface{}); ok {
+				return first
+			}
 		}
 	}
+	return nil
+}
+
+func buildNaivasProduct(name, price string, promo bool, promoDetails, productURL, category string) *bson.M {
+	now := time.Now()
+	return &bson.M{
+		"product_name":      strings.TrimSpace(name),
+		"store_chain":       "Naivas",
+		"store_branch":      "Online Store",
+		"price_kes":         price,
+		"currency":          "KES",
+		"source":            "naivas_online",
+		"is_promotional":    promo,
+		"promotion_details": promoDetails,
+		"category":          category,
+		"response_url":      productURL,
+		"verified_at":       now,
+		"created_at":        now,
+		"scraper":           "go",
+	}
+}
+
+// ---------- category links ----------
+
+// extractNaivasCategoryLinks extracts category links from the homepage HTML.
+func extractNaivasCategoryLinks(html string) []string {
+	doc, err := docFromHTML(html)
+	if err != nil {
+		log.Printf("Error parsing homepage HTML: %v", err)
+		return nil
+	}
+
+	seen := make(map[string]bool)
+	var links []string
+	doc.Find(`#mega-menu-full a[href]`).Each(func(_ int, s *goquery.Selection) {
+		href, _ := s.Attr("href")
+		link := absURL(strings.TrimSpace(href))
+		if strings.HasPrefix(link, "http") && strings.Contains(link, "/category/") && !seen[link] {
+			seen[link] = true
+			links = append(links, link)
+		}
+	})
 	return links
 }
 
-// extractCategoryFromURL tries to extract category name from URL
+// extractCategoryFromURL tries to extract a category name from a URL.
+// Example: https://naivas.online/category/dairy-eggs -> "Dairy Eggs"
 func extractCategoryFromURL(url string) string {
-	// Try to extract category from URL path
-	// Example: https://naivas.online/category/dairy-eggs -> dairy-eggs
 	if idx := strings.LastIndex(url, "/category/"); idx != -1 {
 		category := url[idx+len("/category/"):]
-		// Remove trailing slash or query parameters
-		if idx := strings.IndexAny(category, "/?"); idx != -1 {
-			category = category[:idx]
+		if end := strings.IndexAny(category, "/?"); end != -1 {
+			category = category[:end]
 		}
-		// Replace hyphens with spaces and title case (simplified)
 		category = strings.ReplaceAll(category, "-", " ")
 		return strings.Title(category)
 	}
 	return "General"
 }
 
-// scrapeNaivasCategory scrapes a category page (with pagination) and returns products
-func scrapeNaivasCategory(chromeCtx *chromedp.Context, categoryURL string, category string, town string, branch string) []bson.M {
+// ---------- category scraping ----------
+
+// scrapeNaivasCategory scrapes a category (with pagination) and returns products.
+// parent must be a chromedp context (from chromedp.NewContext), typed as context.Context.
+func scrapeNaivasCategory(parent context.Context, categoryURL string, category string, town string, branch string) []bson.M {
 	var products []bson.M
 
-	// Create a task context for this category
-	taskCtx, cancel := chromedp.NewContext(chromeCtx)
+	taskCtx, cancel := chromedp.NewContext(parent)
 	defer cancel()
 
-	// We'll handle pagination by looping until no next page
 	currentURL := categoryURL
 	pageNum := 1
 
@@ -129,6 +157,7 @@ func scrapeNaivasCategory(chromeCtx *chromedp.Context, categoryURL string, categ
 		var pageHTML string
 		err := chromedp.Run(taskCtx,
 			chromedp.Navigate(currentURL),
+			chromedp.WaitReady("body"),
 			chromedp.OuterHTML(`html`, &pageHTML),
 		)
 		if err != nil {
@@ -136,195 +165,77 @@ func scrapeNaivasCategory(chromeCtx *chromedp.Context, categoryURL string, categ
 			break
 		}
 
-		// Extract product links from this page
 		productLinks := extractNaivasProductLinks(pageHTML)
 		log.Printf("Found %d product links on page %d", len(productLinks), pageNum)
 
-		// Process each product link
 		for _, productLink := range productLinks {
-			product := extractNaivasProductDetails(chromeCtx, productLink, category)
+			product := extractNaivasProductDetails(parent, productLink, category)
 			if product != nil {
 				products = append(products, *product)
 			}
-			// Be respectful - small delay between requests
 			time.Sleep(300 * time.Millisecond)
 		}
 
-		// Find next page link
 		nextURL := extractNaivasNextPageLink(pageHTML)
 		if nextURL == "" || nextURL == currentURL {
-			// No more pages or we're stuck
 			break
 		}
 		currentURL = nextURL
 		pageNum++
-		// Be respectful - delay between pages
 		time.Sleep(2 * time.Second)
 	}
 
 	return products
 }
 
-// extractNaivasProductLinks extracts product links from a category page
+// extractNaivasProductLinks extracts product links from a category page.
 func extractNaivasProductLinks(html string) []string {
-	var links []string
-
-	// Use chromedp to extract links from HTML string
-	ctx, cancel := chromedp.NewContext(context.Background())
-	defer cancel()
-
-	var nodes []*chromedp.Node
-	err := chromedp.Run(ctx,
-		chromedp.HTML(`<html><body>`+html+`</body></html>`, &nodes),
-		chromedp.Nodes(`.product-img a[href]`, &nodes, chromedp.ByQueryAll),
-	)
+	doc, err := docFromHTML(html)
 	if err != nil {
-		log.Printf("Error extracting product links with chromedp: %v", err)
-		return extractNaivasProductLinksFallback(html)
+		log.Printf("Error parsing category HTML: %v", err)
+		return nil
 	}
 
-	for _, node := range nodes {
-		for _, attr := range node.Attributes {
-			if attr.Key == "href" {
-				link := attr.Val
-				// Make absolute if relative
-				if strings.HasPrefix(link, "/") {
-					link = "https://naivas.online" + link
-				}
-				// Filter for product links
-				if strings.Contains(link, "/product/") || strings.Contains(link, "/products/") {
-					links = append(links, link)
-				}
-				break
-			}
-		}
-	}
-
-	// Deduplicate
 	seen := make(map[string]bool)
-	var uniqueLinks []string
-	for _, link := range links {
-		if !seen[link] {
-			seen[link] = true
-			uniqueLinks = append(uniqueLinks, link)
-		}
-	}
-	return uniqueLinks
-}
-
-// Fallback product link extraction
-func extractNaivasProductLinksFallback(html string) []string {
 	var links []string
-	// Simple extraction of href from .product-img a
-	start := 0
-	for {
-		startIdx := strings.Index(html[start:], `<a`)
-		if startIdx == -1 {
-			break
-		}
-		start += startIdx
-		// Check if this <a> is within .product-img
-		// Simplified: just look for href after <a
-		hrefIdx := strings.Index(html[start:], `href="`)
-		if hrefIdx == -1 {
-			start++
-			continue
-		}
-		start += hrefIdx + 6 // skip 'href="'
-		endIdx := strings.Index(html[start:], `"`)
-		if endIdx == -1 {
-			start++
-			continue
-		}
-		link := html[start : start+endIdx]
-		start += endIdx
-
-		// Make absolute if relative
-		if strings.HasPrefix(link, "/") {
-			link = "https://naivas.online" + link
-		}
-		// Filter for product links
-		if strings.Contains(link, "/product/") || strings.Contains(link, "/products/") {
+	doc.Find(`.product-img a[href]`).Each(func(_ int, s *goquery.Selection) {
+		href, _ := s.Attr("href")
+		link := absURL(strings.TrimSpace(href))
+		if (strings.Contains(link, "/product/") || strings.Contains(link, "/products/")) && !seen[link] {
+			seen[link] = true
 			links = append(links, link)
 		}
-	}
+	})
 	return links
 }
 
-// extractNaivasNextPageLink extracts the next page link from a category page
+// extractNaivasNextPageLink extracts the next-page link from a category page.
 func extractNaivasNextPageLink(html string) string {
-	// Use chromedp to find next page link
-	ctx, cancel := chromedp.NewContext(context.Background())
-	defer cancel()
-
-	var nextURL string
-	err := chromedp.Run(ctx,
-		chromedp.HTML(`<html><body>`+html+`</body></html>`, &nextURL),
-		chromedp.Attribute(`a[rel="next"], .next-page, .pagination__next`, "href", &nextURL, chromedp.ByQueryAll),
-	)
+	doc, err := docFromHTML(html)
 	if err != nil {
-		// Fallback to simple extraction
-		return extractNaivasNextPageLinkFallback(html)
+		return ""
 	}
-
-	// Make absolute if relative
-	if strings.HasPrefix(nextURL, "/") {
-		nextURL = "https://naivas.online" + nextURL
+	sel := doc.Find(`a[rel="next"], a.next-page, .next-page a, a.pagination__next, .pagination__next a`).First()
+	href, ok := sel.Attr("href")
+	if !ok {
+		return ""
 	}
-	return nextURL
+	return absURL(strings.TrimSpace(href))
 }
 
-// Fallback next page link extraction
-func extractNaivasNextPageLinkFallback(html string) string {
-	// Simple extraction of next page link
-	start := 0
-	for {
-		startIdx := strings.Index(html[start:], `a[rel="next"]`)
-		if startIdx == -1 {
-			startIdx = strings.Index(html[start:], `.next-page`)
-			if startIdx == -1 {
-				startIdx = strings.Index(html[start:], `.pagination__next`)
-			}
-		}
-		if startIdx == -1 {
-			break
-		}
-		start += startIdx
-		// Look for href attribute
-		hrefIdx := strings.Index(html[start:], `href="`)
-		if hrefIdx == -1 {
-			start++
-			continue
-		}
-		start += hrefIdx + 6 // skip 'href="'
-		endIdx := strings.Index(html[start:], `"`)
-		if endIdx == -1 {
-			start++
-			continue
-		}
-		nextURL := html[start : start+endIdx]
-		start += endIdx
+// ---------- product details ----------
 
-		// Make absolute if relative
-		if strings.HasPrefix(nextURL, "/") {
-			nextURL = "https://naivas.online" + nextURL
-		}
-		return nextURL
-	}
-	return ""
-}
-
-// extractNaivasProductDetails navigates to a product URL and extracts product information
-func extractNaivasProductDetails(chromeCtx *chromedp.Context, productURL string, category string) *bson.M {
-	// Create a task context with timeout
-	taskCtx, cancel := chromedp.NewContext(chromeCtx)
+// extractNaivasProductDetails loads a product page and extracts its data.
+func extractNaivasProductDetails(parent context.Context, productURL string, category string) *bson.M {
+	taskCtx, cancel := chromedp.NewContext(parent)
 	defer cancel()
-	taskCtx, cancel = context.WithTimeout(taskCtx, 20*time.Second)
-	defer cancel()
+	timeoutCtx, cancelTimeout := context.WithTimeout(taskCtx, 20*time.Second)
+	defer cancelTimeout()
 
 	var html string
-	err := chromedp.Run(taskCtx,
+	err := chromedp.Run(timeoutCtx,
 		chromedp.Navigate(productURL),
+		chromedp.WaitReady("body"),
 		chromedp.OuterHTML(`html`, &html),
 	)
 	if err != nil {
@@ -332,39 +243,28 @@ func extractNaivasProductDetails(chromeCtx *chromedp.Context, productURL string,
 		return nil
 	}
 
-	// Try to extract from JSON-LD first
-	product := extractNaivasFromJSONLD(html, productURL, category)
-	if product != nil {
+	doc, err := docFromHTML(html)
+	if err != nil {
+		log.Printf("Failed to parse product page %s: %v", productURL, err)
+		return nil
+	}
+
+	if product := extractNaivasFromJSONLD(doc, productURL, category); product != nil {
 		return product
 	}
-
-	// Fallback to CSS selectors
-	return extractNaivasFromCSS(html, productURL, category)
+	return extractNaivasFromCSS(doc, productURL, category)
 }
 
-// extractNaivasFromJSONLD tries to parse product data from JSON-LD scripts
-func extractNaivasFromJSONLD(html string, productURL string, category string) *bson.M {
-	// Find all application/ld+json scripts
-	var scripts []string
-	ctx, cancel := chromedp.NewContext(context.Background())
-	defer cancel()
+// extractNaivasFromJSONLD parses product data from JSON-LD <script> tags.
+func extractNaivasFromJSONLD(doc *goquery.Document, productURL string, category string) *bson.M {
+	var result *bson.M
 
-	err := chromedp.Run(ctx,
-		chromedp.HTML(`<html><body>`+html+`</body></html>`, &scripts),
-		chromedp.Nodes(`script[type="application/ld+json"]`, &scripts, chromedp.ByQueryAll),
-	)
-	if err != nil {
-		// Fallback to simple extraction
-		return extractNaivasFromJSONLDFallback(html, productURL, category)
-	}
-
-	for _, script := range scripts {
+	doc.Find(`script[type="application/ld+json"]`).EachWithBreak(func(_ int, s *goquery.Selection) bool {
 		var data interface{}
-		if err := json.Unmarshal([]byte(script), &data); err != nil {
-			continue
+		if err := json.Unmarshal([]byte(s.Text()), &data); err != nil {
+			return true // keep looking
 		}
 
-		// Handle both single object and array
 		var items []interface{}
 		switch v := data.(type) {
 		case []interface{}:
@@ -372,264 +272,97 @@ func extractNaivasFromJSONLD(html string, productURL string, category string) *b
 		case map[string]interface{}:
 			items = []interface{}{v}
 		default:
-			continue
+			return true
 		}
 
 		for _, item := range items {
-			itemMap, ok := item.(map[string]interface{})
-			if !ok {
+			m, ok := item.(map[string]interface{})
+			if !ok || !strings.Contains(fmt.Sprint(m["@type"]), "Product") {
 				continue
 			}
-			if itemMap["@type"] == "Product" || (itemMap["@type"] != nil && strings.Contains(fmt.Sprint(itemMap["@type"]), "Product")) {
-				// Extract product details
-				name := extractString(itemMap, "name")
-				if name == "" {
-					continue
-				}
 
-				price := ""
-				if offers, ok := itemMap["offers"].(map[string]interface{}); ok {
-					if priceVal, ok := offers["price"]; ok {
-						switch v := priceVal.(type) {
-						case string:
-							price = v
-						case float64:
-							price = fmt.Sprintf("%.2f", v)
-						}
-					}
-				}
-				if price == "" {
-					continue
-				}
-
-				// Check for promotional details
-				isPromotional := false
-				var promotionDetails string
-				if priceOriginal, ok := itemMap["offers"].(map[string]interface{})["priceSpecification"].(map[string]interface{})["price"]; ok {
-					// This is simplified - actual promotion detection would be more complex
-					isPromotional = true
-				}
-
-				// Build product document
-				return &bson.M{
-					"product_name":   strings.TrimSpace(name),
-					"store_chain":    "Naivas",
-					"store_branch":   "Online Store",
-					"price_kes":      price,
-					"currency":       "KES",
-					"source":         "naivas_online",
-					"is_promotional": isPromotional,
-					"promotion_details": promotionDetails,
-					"category":       category,
-					"response_url":   productURL,
-					"verified_at":    time.Now(),
-					"created_at":     time.Now(),
-					"scraper":        "go",
-				}
-			}
-		}
-	}
-	return nil
-}
-
-// Fallback JSON-LD extraction
-func extractNaivasFromJSONLDFallback(html string, productURL string, category string) *bson.M {
-	// Simple extraction of JSON-LD content
-	start := 0
-	for {
-		startIdx := strings.Index(html[start:], `<script type="application/ld+json">`)
-		if startIdx == -1 {
-			break
-		}
-		start += startIdx + len(`<script type="application/ld+json">`)
-		endIdx := strings.Index(html[start:], `</script>`)
-		if endIdx == -1 {
-			break
-		}
-		script := html[start : start+endIdx]
-		start += endIdx
-
-		var data interface{}
-		if err := json.Unmarshal([]byte(script), &data); err != nil {
-			continue
-		}
-
-		// Process as above...
-		var items []interface{}
-		switch v := data.(type) {
-		case []interface{}:
-			items = v
-		case map[string]interface{}:
-			items = []interface{}{v}
-		default:
-			continue
-		}
-
-		for _, item := range items {
-			itemMap, ok := item.(map[string]interface{})
-			if !ok {
+			name := ldString(m, "name")
+			if name == "" {
 				continue
 			}
-			if itemMap["@type"] == "Product" || (itemMap["@type"] != nil && strings.Contains(fmt.Sprint(itemMap["@type"]), "Product")) {
-				name := extractString(itemMap, "name")
-				if name == "" {
-					continue
-				}
 
-				price := ""
-				if offers, ok := itemMap["offers"].(map[string]interface{}); ok {
-					if priceVal, ok := offers["price"]; ok {
-						switch v := priceVal.(type) {
-						case string:
-							price = v
-						case float64:
-							price = fmt.Sprintf("%.2f", v)
-						}
-					}
-				}
-				if price == "" {
-					continue
-				}
-
-				// Check for promotional details (simplified)
-				isPromotional := false
-				var promotionDetails string
-
-				return &bson.M{
-					"product_name":   strings.TrimSpace(name),
-					"store_chain":    "Naivas",
-					"store_branch":   "Online Store",
-					"price_kes":      price,
-					"currency":       "KES",
-					"source":         "naivas_online",
-					"is_promotional": isPromotional,
-					"promotion_details": promotionDetails,
-					"category":       category,
-					"response_url":   productURL,
-					"verified_at":    time.Now(),
-					"created_at":     time.Now(),
-					"scraper":        "go",
-				}
+			offer := ldOffer(m)
+			if offer == nil {
+				continue
 			}
+			price := ""
+			switch v := offer["price"].(type) {
+			case string:
+				price = parsePriceText(v)
+			case float64:
+				price = fmt.Sprintf("%.2f", v)
+			}
+			if price == "" {
+				continue
+			}
+
+			// JSON-LD doesn't reliably indicate promotions; CSS path handles was/now pricing.
+			result = buildNaivasProduct(name, price, false, "", productURL, category)
+			return false // stop searching
 		}
-	}
-	return nil
+		return true
+	})
+
+	return result
 }
 
-// extractNaivasFromCSS extracts product details using CSS selectors (fallback)
-func extractNaivasFromCSS(html string, productURL string, category string) *bson.M {
-	ctx, cancel := chromedp.NewContext(context.Background())
-	defer cancel()
-
-	var productName string
-	var priceText string
-	var isPromotional bool
-	var promotionDetails string
-
-	// Try to extract product name
-	nameSelectors := []string{
-		`h1`,
-		`.product-title`,
-		`.product-name`,
+// extractNaivasFromCSS extracts product details with CSS selectors (fallback).
+func extractNaivasFromCSS(doc *goquery.Document, productURL string, category string) *bson.M {
+	productName := firstText(doc,
 		`h1[data-testid="product-title"]`,
 		`[data-testid="product-title"]`,
-	}
-	for _, selector := range nameSelectors {
-		err := chromedp.Run(ctx,
-			chromedp.HTML(`<html><body>`+html+`</body></html>`, &productName),
-			chromedp.Text(selector, &productName, chromedp.ByQuery),
-		)
-		if err == nil && strings.TrimSpace(productName) != "" {
-			break
-		}
-	}
-
-	// Try to extract price
-	priceSelectors := []string{
+		`.product-title`,
+		`.product-name`,
+		`h1`,
+	)
+	priceText := firstText(doc,
 		`[data-testid="price"]`,
 		`.price-current`,
 		`.price-sale`,
 		`.price`,
 		`[class*="price"]`,
 		`.cost`,
-	}
-	for _, selector := range priceSelectors {
-		err := chromedp.Run(ctx,
-			chromedp.HTML(`<html><body>`+html+`</body></html>`, &priceText),
-			chromedp.Text(selector, &priceText, chromedp.ByQuery),
-		)
-		if err == nil && strings.TrimSpace(priceText) != "" {
-			break
-		}
+	)
+
+	if productName == "" || priceText == "" {
+		log.Printf("Could not extract product name or price from %s", productURL)
+		return nil
 	}
 
-	// Check for promotional details
-	promoSelectors := []string{
+	isPromotional := false
+	promotionDetails := ""
+
+	if promo := firstText(doc,
 		`.badge-sale`,
 		`.label-offer`,
 		`.promo-tag`,
 		`[data-testid="price-original"]`,
 		`.price-was`,
 		`.original-price`,
-	}
-	for _, selector := range promoSelectors {
-		var promoText string
-		err := chromedp.Run(ctx,
-			chromedp.HTML(`<html><body>`+html+`</body></html>`, &promoText),
-			chromedp.Text(selector, &promoText, chromedp.ByQuery),
-		)
-		if err == nil && strings.TrimSpace(promoText) != "" {
-			isPromotional = true
-			promotionDetails = strings.TrimSpace(promoText)
-			break
-		}
+	); promo != "" {
+		isPromotional = true
+		promotionDetails = promo
 	}
 
-	// If we didn't find a specific promotion detail, check for was/now pricing
 	if !isPromotional {
-		var wasPrice string
-		var nowPrice string
-		err := chromedp.Run(ctx,
-			chromedp.HTML(`<html><body>`+html+`</body></html>`, &wasPrice),
-			chromedp.Text(`.price-was`, &wasPrice, chromedp.ByQuery),
-		)
-		if err == nil && strings.TrimSpace(wasPrice) != "" {
-			err2 := chromedp.Run(ctx,
-				chromedp.HTML(`<html><body>`+html+`</body></html>`, &nowPrice),
-				chromedp.Text(`.price-current`, &nowPrice, chromedp.ByQuery),
-			)
-			if err2 == nil && strings.TrimSpace(nowPrice) != "" {
-				// Simple check: if now price is less than was price, it's promotional
-				// In a real implementation, we'd parse the numbers properly
-				if strings.TrimSpace(nowPrice) != "" && strings.TrimSpace(wasPrice) != "" {
-					isPromotional = true
-					promotionDetails = fmt.Sprintf("Was %s, now %s", wasPrice, nowPrice)
-				}
-			}
+		wasPrice := firstText(doc, `.price-was`)
+		nowPrice := firstText(doc, `.price-current`)
+		if wasPrice != "" && nowPrice != "" {
+			isPromotional = true
+			promotionDetails = fmt.Sprintf("Was %s, now %s", wasPrice, nowPrice)
 		}
 	}
 
-	if strings.TrimSpace(productName) == "" || strings.TrimSpace(priceText) == "" {
-		log.Printf("Could not extract product name or price from %s", productURL)
+	price := parsePriceText(priceText)
+	if price == "" {
+		log.Printf("Could not parse price %q from %s", priceText, productURL)
 		return nil
 	}
 
-	// Clean price text (remove currency symbols, etc.)
-	price := cleanPrice(priceText)
-
-	return &bson.M{
-		"product_name":   strings.TrimSpace(productName),
-		"store_chain":    "Naivas",
-		"store_branch":   "Online Store",
-		"price_kes":      price,
-		"currency":       "KES",
-		"source":         "naivas_online",
-		"is_promotional": isPromotional,
-		"promotion_details": promotionDetails,
-		"category":       category,
-		"response_url":   productURL,
-		"verified_at":    time.Now(),
-		"created_at":     time.Now(),
-		"scraper":        "go",
-	}
+	return buildNaivasProduct(productName, price, isPromotional, promotionDetails, productURL, category)
 }

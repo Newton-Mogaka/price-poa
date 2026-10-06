@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
+	//"net/url"
 	"os"
 	"strings"
 	"sync"
+	"time"
+	"strconv"
 )
 
 // QuickmartBranchPresets represents predefined primary branch configurations for key regions
@@ -185,14 +187,12 @@ func loadDiscoveredBranches() {
 	log.Println("No discovered branches file found, using only presets")
 }
 
-// fileExists checks if a file exists
+//check if file exists
 func fileExists(filename string) bool {
 	info, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return false
-	}
-	return err == nil
+	return err == nil && !info.IsDir()
 }
+
 
 // fetchDynamicBranchProfile fetches live Growcer cookies and coordinates for a discovered branch slug
 func fetchDynamicBranchProfile(discoveredEntry map[string]interface{}) map[string]interface{} {
