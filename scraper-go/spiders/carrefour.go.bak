@@ -16,7 +16,7 @@ func RunCarrefourSpider(ctx context.Context, pricesColl *mongo.Collection, town 
 		Branch: "Online Store",
 		Source: "carrefour_online",
 
-		StartURL:    "https://www.carrefour.ke/mafken/en/c/FKEN1660000",
+		StartURL:    "https://www.carrefour.co.ke",
 		CategorySel: `nav a[href*="/category/"], .menu a[href*="/category/"], .nav-menu a[href*="/category/"]`,
 		CategoryOK:  func(l string) bool { return strings.Contains(l, "/category/") },
 		ProductSel:  `a[href*="/product/"], a[href*="/products/"], .product-item a[href]`,
