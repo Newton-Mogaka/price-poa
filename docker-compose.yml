@@ -76,7 +76,7 @@ services:
   # FASTAPI BACKEND
   api:
     build:
-      context: ./api
+      context: .
       dockerfile: api/Dockerfile
       network: host
     container_name: pricepoa_api
