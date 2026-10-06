@@ -1,5 +1,6 @@
 # Stage 1: Build the Go binary
-FROM golang:1.22-alpine AS builder
+# FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
@@ -15,11 +16,12 @@ COPY . .
 # Build the binary
 RUN go build -o /scraper-go .
 
+
 # Stage 2: Create a minimal runtime image
 FROM alpine:latest
 
 # Install ca-certificates for HTTPS calls
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates chromium
 
 # Copy the binary from the builder
 COPY --from=builder /scraper-go /scraper-go
