@@ -48,25 +48,6 @@ func mapFloatPtr(m map[string]interface{}, key string) *float64 {
 	return nil
 }
 
-// Extract cookies from profile and return as map[name]value
-func extractCookies(profile map[string]interface{}) map[string]string {
-	cookies := make(map[string]string)
-	if cookiesInterface, ok := profile["cookies"]; ok {
-		if cookiesArray, ok := cookiesInterface.([]interface{}); ok {
-			for _, cookieItem := range cookiesArray {
-				if cookieMap, ok := cookieItem.(map[string]interface{}); ok {
-					if name, ok := cookieMap["name"].(string); ok {
-						if value, ok := cookieMap["value"].(string); ok {
-							cookies[name] = value
-						}
-					}
-				}
-			}
-		}
-	}
-	return cookies
-}
-
 // RunQuickmartSpider scrapes Quickmart for the branch resolved from town/branch.
 func RunQuickmartSpider(ctx context.Context, pricesColl *mongo.Collection, town string, branch string) {
 	profile := config.ResolveBranch(town, branch)
@@ -84,25 +65,17 @@ func RunQuickmartSpider(ctx context.Context, pricesColl *mongo.Collection, town 
 
 	// Branch cookies, set in the browser tab before every navigation.
 	prepare := func(ctx context.Context) error {
-		// Extract cookies from the profile first
-		cookies := extractCookies(profile)
-
-		// If we didn't get any cookies from the profile, fall back to the original hardcoded ones
-		if len(cookies) == 0 {
-			cookies = map[string]string{
-				"_ygShopId":     strconv.Itoa(shopID),
-				"_ygGeoAddress": storeTown,
-				"_ygGeoRadius":  "15",
-			}
-			if gpsLat != nil {
-				cookies["_ygGeoLat"] = fmt.Sprintf("%f", *gpsLat)
-			}
-			if gpsLng != nil {
-				cookies["_ygGeoLng"] = fmt.Sprintf("%f", *gpsLng)
-			}
+		cookies := map[string]string{
+			"_ygShopId":     strconv.Itoa(shopID),
+			"_ygGeoAddress": storeTown,
+			"_ygGeoRadius":  "15",
 		}
-
-		// Set each cookie
+		if gpsLat != nil {
+			cookies["_ygGeoLat"] = fmt.Sprintf("%f", *gpsLat)
+		}
+		if gpsLng != nil {
+			cookies["_ygGeoLng"] = fmt.Sprintf("%f", *gpsLng)
+		}
 		for name, value := range cookies {
 			if err := network.SetCookie(name, value).WithURL("https://www.quickmart.co.ke/").Do(ctx); err != nil {
 				return err
