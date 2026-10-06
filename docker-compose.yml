@@ -76,7 +76,7 @@ services:
   # FASTAPI BACKEND
   api:
     build:
-      context: .
+      context: ./api
       dockerfile: api/Dockerfile
       network: host
     container_name: pricepoa_api
@@ -135,7 +135,7 @@ services:
   # SCRAPER (Background Worker)
   scraper:
     build:
-      context: .
+      context: ./scraper
       dockerfile: scraper/Dockerfile
       network: host
     container_name: pricepoa_scraper
@@ -162,7 +162,7 @@ services:
   # INTELLIGENCE SERVICE
   intelligence:
     build:
-      context: .
+      context: ./intelligence
       dockerfile: intelligence/Dockerfile
       network: host
     container_name: pricepoa_intelligence
