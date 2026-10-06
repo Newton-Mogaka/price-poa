@@ -76,6 +76,18 @@ func RunStore(ctx context.Context, coll *mongo.Collection, cfg StoreConfig) {
 			log.Printf("Failed to fetch %s homepage: %v", cfg.Chain, err)
 			return
 		}
+		log.Printf("%s homepage: %d bytes", cfg.Chain, len(html))
+		if d, derr := goquery.NewDocumentFromReader(strings.NewReader(html)); derr == nil {
+			body := strings.Join(strings.Fields(d.Find("body").Text()), " ")
+			if len(body) > 300 {
+				body = body[:300]
+			}
+			log.Printf("title=%q anchors=%d menu-links(title=#)=%d",
+				strings.TrimSpace(d.Find("title").Text()),
+				d.Find("a[href]").Length(),
+				d.Find(`a[title="#"]`).Length())
+			log.Printf("body starts: %q", body)
+		}
 		categories = linksFrom(html, cfg.StartURL, cfg.CategorySel, cfg.CategoryOK)
 		log.Printf("Found %d category links on %s homepage", len(categories), cfg.Chain)
 	}
@@ -139,6 +151,7 @@ func fetchHTML(browserCtx context.Context, cfg StoreConfig, pageURL string) (str
 	actions = append(actions,
 		chromedp.Navigate(pageURL),
 		chromedp.WaitReady("body"),
+		chromedp.Sleep(3*time.Second), // let late JS finish rendering
 		chromedp.OuterHTML("html", &html),
 	)
 	if err := chromedp.Run(runCtx, actions...); err != nil {
