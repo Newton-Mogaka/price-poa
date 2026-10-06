@@ -36,9 +36,9 @@ from database.models import (
 
 logger = logging.getLogger("uvicorn.error")
 
-from api.app.agent.service import handle_message
-from api.app.agent.config import settings
-from api.app.agent.schemas import AgentReply
+from app.agent.service import handle_message
+from app.agent.config import settings
+from app.agent.schemas import AgentReply
 # Router
 router = APIRouter()
 
