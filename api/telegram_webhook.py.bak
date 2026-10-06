@@ -36,9 +36,6 @@ from database.models import (
 
 logger = logging.getLogger("uvicorn.error")
 
-from api.app.agent.service import handle_message
-from api.app.agent.config import settings
-from api.app.agent.schemas import AgentReply
 # Router
 router = APIRouter()
 
@@ -916,20 +913,6 @@ async def process_telegram_message(chat_id: int, text: str, background_tasks: Op
     )
 
     if not is_command:
-        # Check if agent is enabled - if so, route to agent instead of relay
-        if settings.AGENT_ENABLED:
-            # Route to LLM agent
-            agent_reply = await handle_message(chat_id, text)
-            # Return agent response as a dict for the webhook handler to process
-            return {
-                "type": "agent_response",
-                "data": {
-                    "text": agent_reply.text,
-                    "image_path": agent_reply.image_path
-                }
-            }
-
-        # Fall back to normal relay behavior if agent is disabled
         db = await get_database()
         session = await find_active_session_for_user(db, chat_id)
         if session:
@@ -1660,21 +1643,6 @@ async def telegram_webhook(
             fallback_text = query_text
 
         send_telegram_text(chat_id, fallback_text)
-        return JSONResponse(status_code=200, content={"status": "accepted"})
-
-    # Handle agent response
-    if processed["type"] == "agent_response":
-        data = processed["data"]
-        # Send the agent's text response
-        send_telegram_text(chat_id, data["text"])
-        # If agent generated an image, send it too
-        if data.get("image_path"):
-            try:
-                with open(data["image_path"], "rb") as f:
-                    image_bytes = f.read()
-                send_telegram_photo(chat_id, image_bytes)
-            except Exception as e:
-                logger.error(f"Failed to send agent-generated image: {e}")
         return JSONResponse(status_code=200, content={"status": "accepted"})
 
     # Handle start command
