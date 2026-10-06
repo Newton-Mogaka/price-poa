@@ -76,8 +76,8 @@ services:
   # FASTAPI BACKEND
   api:
     build:
-      context: .
-      dockerfile: api/Dockerfile
+      context: ./api
+      dockerfile: Dockerfile
       network: host
     container_name: pricepoa_api
     environment:
@@ -136,7 +136,7 @@ services:
   scraper:
     build:
       context: ./scraper
-      dockerfile: scraper/Dockerfile
+      dockerfile: Dockerfile
       network: host
     container_name: pricepoa_scraper
     environment:
@@ -162,8 +162,8 @@ services:
   # INTELLIGENCE SERVICE
   intelligence:
     build:
-      context: .
-      dockerfile: intelligence/Dockerfile
+      context: ./intelligence
+      dockerfile: Dockerfile
       network: host
     container_name: pricepoa_intelligence
     environment:
