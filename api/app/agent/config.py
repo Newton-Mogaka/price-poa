@@ -28,8 +28,6 @@ class AgentSettings(BaseSettings):
     AGENT_SESSION_TTL_DAYS: int = Field(default=14, description="Chat session TTL in days")
 
     class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
         case_sensitive = True
 
 

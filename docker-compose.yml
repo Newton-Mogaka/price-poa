@@ -106,6 +106,9 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_URL: ${REDIS_URL}
+      # Agent API keys
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
 
     ports:
       - "8000:8000"
