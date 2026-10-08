@@ -32,7 +32,7 @@ class SearchProductsTool:
                 },
                 "location": {
                     "type": "string",
-                    "description": "Town/city to filter results (e.g., "Nairobi", "Nyeri")"
+                    "description": "Town/city to filter results (e.g., 'Nairobi', 'Nyeri')",
                 },
                 "limit": {
                     "type": "integer",
