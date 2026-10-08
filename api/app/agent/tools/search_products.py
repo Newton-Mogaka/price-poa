@@ -5,7 +5,8 @@ Wraps the existing search_pipeline.search_products function and adds pricing dat
 import logging
 from typing import Dict, Any
 from ..adapters.matching import search_products_adapter
-from ..database.connection import get_database
+from database.connection import get_database
+from query_engine import get_product_prices
 
 logger = logging.getLogger(__name__)
 
